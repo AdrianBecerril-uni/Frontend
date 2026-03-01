@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import api from '../../lib/api';
-import { toast } from 'sonner';
 
 export interface User {
     steamid: string;
@@ -19,27 +18,66 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const STORAGE_KEY = 'steamates_user';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check if user is authenticated via the backend session
+        // 1. Check if we're returning from Steam login (URL has steamId param)
+        const params = new URLSearchParams(window.location.search);
+        const steamId = params.get('steamId');
+
+        if (steamId) {
+            // Steam callback — extract user data from URL params
+            const userData: User = {
+                steamid: steamId,
+                personaname: params.get('username') || 'Steam User',
+                avatarfull: params.get('avatar') || '',
+                profileurl: params.get('profileUrl') || `https://steamcommunity.com/profiles/${steamId}`,
+            };
+            setUser(userData);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+            setLoading(false);
+
+            // Clean the URL (remove query params)
+            window.history.replaceState({}, '', window.location.pathname);
+            return;
+        }
+
+        // 2. Check localStorage for persisted session
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                if (parsed.steamid) {
+                    setUser(parsed);
+                    setLoading(false);
+                    return;
+                }
+            } catch {
+                localStorage.removeItem(STORAGE_KEY);
+            }
+        }
+
+        // 3. Fallback: try the backend session (works when same-origin)
         const checkAuth = async () => {
             try {
                 const res = await api.get('/api/auth/me');
                 if (res.data?.user) {
-                    setUser({
+                    const userData: User = {
                         steamid: res.data.user.steamId,
                         personaname: res.data.user.username,
                         avatarfull: res.data.user.avatar,
                         profileurl: res.data.user.profileUrl || `https://steamcommunity.com/profiles/${res.data.user.steamId}`,
                         isAdmin: res.data.user.isAdmin || false,
-                    });
+                    };
+                    setUser(userData);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
                 }
             } catch {
                 // Not authenticated
-                setUser(null);
             } finally {
                 setLoading(false);
             }
@@ -59,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // ignore
         }
         setUser(null);
+        localStorage.removeItem(STORAGE_KEY);
         window.location.href = '/login';
     };
 
