@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Bot, X, Send, Sparkles, Loader2 } from "lucide-react";
-import api from "@/lib/api";
+import { Bot, X, Send, Sparkles } from "lucide-react";
+import api from "../../../lib/api";
+import { useAuth } from "../../context/AuthContext";
 
 interface Message {
   id: string;
@@ -11,21 +12,14 @@ interface Message {
 
 export function AssistantModal() {
   const [isOpen, setIsOpen] = useState(false);
-  const user = JSON.parse(localStorage.getItem('user') || 'null');
-  const steamId = user?.steamId || localStorage.getItem('steamId') || null;
-  const username = user?.username || 'Gamer';
-
   const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1', role: 'assistant', text: steamId
-        ? `¡Hola ${username}! Soy SteaMate AI 🎮 Tengo acceso a tu biblioteca de Steam, tus juegos más jugados y tu lista de amigos. Pregúntame lo que quieras:\n\n• "¿Qué debería jugar hoy?"\n• "Recomiéndame algo como mi juego favorito"\n• "¿Qué juegos tengo en común con mis amigos?"\n• "¿Qué están jugando mis amigos?"`
-        : '¡Hola! Soy SteaMate AI. Inicia sesión con Steam para que pueda ver tu biblioteca y darte recomendaciones personalizadas. Mientras tanto, pregúntame lo que quieras sobre juegos.'
-    }
+    { id: '1', role: 'assistant', text: '¡Hola! Soy tu asistente de juegos SteaMate. Puedo analizar tu biblioteca, sugerir ofertas o recomendarte joyas ocultas. ¿En qué te ayudo?' }
   ]);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -33,47 +27,46 @@ export function AssistantModal() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isOpen]);
+  }, [messages, isOpen, loading]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || loading) return;
 
     const userText = input.trim();
     const userMsg: Message = { id: Date.now().toString(), role: 'user', text: userText };
     setMessages(prev => [...prev, userMsg]);
     setInput("");
-    setIsLoading(true);
+    setLoading(true);
 
     try {
       const response = await api.post('/api/chat/message', {
         message: userText,
         sessionId,
-        userId: steamId || 'anonymous',
-        steamId: steamId,
+        userId: user?.steamid || 'anonymous',
+        steamId: user?.steamid,
       });
 
-      const { response: aiText, sessionId: newSessionId } = response.data;
-
-      if (newSessionId) {
-        setSessionId(newSessionId);
+      const data = response.data;
+      if (data.sessionId) {
+        setSessionId(data.sessionId);
       }
 
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        text: aiText,
+        text: data.response || 'Lo siento, no pude generar una respuesta.',
       };
       setMessages(prev => [...prev, aiMsg]);
-    } catch (error: any) {
-      const errorMsg = error.response?.data?.error || error.response?.data?.hint || 'Error al conectar con el servidor. Asegúrate de que el backend esté ejecutándose.';
-      const aiMsg: Message = {
+    } catch (error) {
+      console.error("AI Error:", error);
+      const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        text: `⚠️ ${errorMsg}`,
+        text: "Lo siento, tuve un problema al procesar tu solicitud. Intenta de nuevo más tarde."
       };
-      setMessages(prev => [...prev, aiMsg]);
+      setMessages(prev => [...prev, errorMsg]);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -126,32 +119,33 @@ export function AssistantModal() {
 
               {/* Chat Area */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-950/50">
-                {messages.map((msg) => (
+                {messages.map((msg, idx) => (
                   <div
-                    key={msg.id}
+                    key={msg.id || idx}
                     className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[80%] p-3 rounded-2xl text-sm ${msg.role === 'user'
-                          ? 'bg-blue-600 text-white rounded-br-none'
-                          : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700'
+                      className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
+                          ? 'bg-blue-600 text-white rounded-br-none shadow-md shadow-blue-900/20'
+                          : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700 shadow-sm'
                         }`}
                     >
                       {msg.role === 'assistant' && (
-                        <div className="flex items-center gap-2 mb-1 text-xs text-blue-400 font-bold uppercase tracking-wider">
+                        <div className="flex items-center gap-2 mb-1 text-[10px] text-blue-400 font-bold uppercase tracking-wider">
                           <Bot size={12} /> SteaMate AI
                         </div>
                       )}
-                      <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                      <p className="whitespace-pre-wrap">{msg.text}</p>
                     </div>
                   </div>
                 ))}
-                {isLoading && (
+                {loading && (
                   <div className="flex justify-start">
-                    <div className="max-w-[80%] p-3 rounded-2xl text-sm bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700">
-                      <div className="flex items-center gap-2 text-blue-400">
-                        <Loader2 size={16} className="animate-spin" />
-                        <span className="text-xs">Pensando...</span>
+                    <div className="bg-slate-800 p-3 rounded-2xl rounded-bl-none border border-slate-700">
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-0"></span>
+                        <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-150"></span>
+                        <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-300"></span>
                       </div>
                     </div>
                   </div>
@@ -166,15 +160,13 @@ export function AssistantModal() {
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                    placeholder={isLoading ? "Esperando respuesta..." : "Pídeme una recomendación..."}
-                    disabled={isLoading}
-                    className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none disabled:opacity-50"
+                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                    placeholder="Pídeme una recomendación..."
+                    className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none"
                   />
                   <button
                     onClick={handleSend}
-                    disabled={isLoading || !input.trim()}
-                    className="text-blue-500 hover:text-blue-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="text-blue-500 hover:text-blue-400 transition-colors"
                   >
                     <Send size={20} />
                   </button>

@@ -1,187 +1,197 @@
-import { useState, useEffect } from "react";
-import { Users, Trophy, Clock, Gamepad2, Check, Loader2, Link as LinkIcon } from "lucide-react";
-import { Link } from "react-router";
-import api from "@/lib/api";
+import { useEffect, useState } from "react";
+import { Users, Gamepad2, Loader2, Search, ExternalLink } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { Navigate } from "react-router";
+import api from "../../lib/api";
 
-interface SteamFriend {
+interface Friend {
   steamId: string;
   username: string;
   avatar: string;
   status: number;
   currentGame: string | null;
-  friendSince: number;
+  friendSince?: number;
 }
 
-const STATUS_LABELS: Record<number, string> = {
-  0: 'offline', 1: 'online', 2: 'busy', 3: 'away', 4: 'snooze', 5: 'trade', 6: 'playing'
-};
-
 export function Friends() {
-  const [friends, setFriends] = useState<SteamFriend[]>([]);
+  const { user } = useAuth();
+  const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
-  
-  const user = JSON.parse(localStorage.getItem('user') || 'null');
-  const steamId = user?.steamId || localStorage.getItem('steamId');
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    if (!steamId) {
-      setLoading(false);
-      return;
-    }
+    if (!user) return;
 
-    const fetchFriends = async () => {
+    const loadFriends = async () => {
+      setLoading(true);
       try {
-        const response = await api.get(`/api/steam/friends/${steamId}`);
-        setFriends(response.data.friends || []);
+        const res = await api.get(`/api/steam/friends/${user.steamid}`);
+        setFriends(res.data?.friends || []);
       } catch (error) {
-        console.error('Error fetching friends:', error);
+        console.error("Error loading friends:", error);
       } finally {
         setLoading(false);
       }
     };
+    loadFriends();
+  }, [user]);
 
-    fetchFriends();
-  }, [steamId]);
+  if (!user) return <Navigate to="/login" replace />;
 
-  const toggleFriend = (id: string) => {
-    setSelectedFriends(prev => 
-      prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]
-    );
+  const filteredFriends = friends.filter(f =>
+    f.username.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const onlineFriends = filteredFriends.filter(f => f.status > 0);
+  const offlineFriends = filteredFriends.filter(f => f.status === 0);
+
+  const getStatusText = (friend: Friend) => {
+    if (friend.currentGame) return `Jugando ${friend.currentGame}`;
+    switch (friend.status) {
+      case 1: return "Online";
+      case 2: return "Ocupado";
+      case 3: return "Ausente";
+      case 4: return "Durmiendo";
+      case 5: return "Buscando intercambio";
+      case 6: return "Buscando juego";
+      default: return "Offline";
+    }
   };
 
-  if (!steamId) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
-        <Users size={64} className="text-slate-600" />
-        <h2 className="text-2xl font-bold text-white">Inicia sesión para ver tus amigos</h2>
-        <p className="text-slate-400">Conecta tu cuenta de Steam para ver y organizar sesiones con amigos.</p>
-        <Link to="/login" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors">
-          Iniciar Sesión con Steam
-        </Link>
-      </div>
-    );
-  }
+  const getStatusColor = (friend: Friend) => {
+    if (friend.currentGame) return "text-green-400";
+    if (friend.status > 0) return "text-blue-400";
+    return "text-slate-500";
+  };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 size={48} className="text-blue-500 animate-spin" />
-      </div>
-    );
-  }
-
-  const onlineFriends = friends.filter(f => f.status > 0);
-  const offlineFriends = friends.filter(f => f.status === 0);
+  const getStatusDotColor = (friend: Friend) => {
+    if (friend.currentGame) return "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]";
+    if (friend.status > 0) return "bg-blue-500";
+    return "bg-slate-500";
+  };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Friends List */}
-      <div className="lg:col-span-1 space-y-6">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <Users className="text-blue-500" /> Tus Amigos ({friends.length})
-          </h3>
-          <p className="text-sm text-slate-400 mb-4">
-            {onlineFriends.length} online · {offlineFriends.length} offline
-          </p>
-          
-          {friends.length === 0 ? (
-            <p className="text-slate-500 text-sm text-center py-4">
-              No se pudieron cargar amigos. Asegúrate de que tu lista de amigos sea pública en Steam.
-            </p>
-          ) : (
-            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
-              {friends.map(friend => (
-                <div 
-                  key={friend.steamId} 
-                  onClick={() => toggleFriend(friend.steamId)}
-                  className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${
-                    selectedFriends.includes(friend.steamId) 
-                      ? "bg-blue-600/20 border-blue-500/50" 
-                      : "bg-slate-800/50 border-slate-700/50 hover:bg-slate-800"
-                  }`}
-                >
-                  <div className="relative">
-                    <img src={friend.avatar} alt={friend.username} className="w-10 h-10 rounded-full object-cover" />
-                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-900 ${
-                      friend.status === 0 ? 'bg-slate-500' : 
-                      friend.currentGame ? 'bg-blue-500' : 'bg-green-500'
-                    }`}></div>
+    <div className="max-w-5xl mx-auto px-4 pb-20 pt-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold text-white mb-3">Centro Social</h1>
+        <p className="text-slate-400 text-lg">Tu lista de amigos de Steam</p>
+      </div>
+
+      {/* Stats Bar */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        {[
+          { label: "Total amigos", value: friends.length, color: "text-blue-400" },
+          { label: "Online", value: onlineFriends.length, color: "text-green-400" },
+          { label: "Offline", value: offlineFriends.length, color: "text-slate-400" },
+        ].map(s => (
+          <div key={s.label} className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 text-center">
+            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-xs text-slate-500 mt-1">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div className="relative mb-6">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        <input
+          type="text"
+          placeholder="Buscar amigos..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+        />
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <div className="text-center">
+            <Loader2 className="animate-spin text-blue-500 mx-auto mb-3" size={32} />
+            <p className="text-slate-400 text-sm">Cargando amigos...</p>
+          </div>
+        </div>
+      ) : friends.length === 0 ? (
+        <div className="text-center py-20">
+          <Users size={48} className="text-slate-700 mx-auto mb-4" />
+          <h3 className="text-lg font-bold text-white mb-2">Sin amigos</h3>
+          <p className="text-slate-500 text-sm">Tu lista de amigos de Steam está vacía o es privada</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Online Friends */}
+          {onlineFriends.length > 0 && (
+            <div>
+              <h2 className="text-sm font-bold text-green-400 mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                Online — {onlineFriends.length}
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {onlineFriends.map(friend => (
+                  <div
+                    key={friend.steamId}
+                    className="flex items-center gap-3 p-4 bg-slate-900/80 border border-slate-800 rounded-xl hover:border-blue-500/30 transition-all group"
+                  >
+                    <div className="relative shrink-0">
+                      <img src={friend.avatar} alt={friend.username} className="w-12 h-12 rounded-full object-cover ring-2 ring-slate-800" />
+                      <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${getStatusDotColor(friend)}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-white truncate text-sm">{friend.username}</h4>
+                      <p className={`text-xs ${getStatusColor(friend)} truncate mt-0.5`}>
+                        {friend.currentGame && <Gamepad2 size={10} className="inline mr-1" />}
+                        {getStatusText(friend)}
+                      </p>
+                    </div>
+                    <a
+                      href={`https://steamcommunity.com/profiles/${friend.steamId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-600 hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <ExternalLink size={14} />
+                    </a>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-slate-200 truncate">{friend.username}</h4>
-                    <p className="text-xs text-slate-500 truncate">
-                      {friend.currentGame ? `Jugando ${friend.currentGame}` : STATUS_LABELS[friend.status] || 'offline'}
-                    </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Offline Friends */}
+          {offlineFriends.length > 0 && (
+            <div>
+              <h2 className="text-sm font-bold text-slate-500 mb-3">
+                Offline — {offlineFriends.length}
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {offlineFriends.map(friend => (
+                  <div
+                    key={friend.steamId}
+                    className="flex items-center gap-3 p-4 bg-slate-900/60 border border-slate-800/50 rounded-xl hover:border-slate-700 transition-all group opacity-70 hover:opacity-100"
+                  >
+                    <div className="relative shrink-0">
+                      <img src={friend.avatar} alt={friend.username} className="w-12 h-12 rounded-full object-cover ring-2 ring-slate-800 grayscale-[30%]" />
+                      <div className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-slate-900 bg-slate-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-slate-300 truncate text-sm">{friend.username}</h4>
+                      <p className="text-xs text-slate-600 mt-0.5">Offline</p>
+                    </div>
+                    <a
+                      href={`https://steamcommunity.com/profiles/${friend.steamId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-600 hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <ExternalLink size={14} />
+                    </a>
                   </div>
-                  {selectedFriends.includes(friend.steamId) && (
-                    <Check size={18} className="text-blue-400 flex-shrink-0" />
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
-
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-           <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <Trophy className="text-yellow-500" /> Amigos Online
-          </h3>
-          <div className="space-y-4">
-            {onlineFriends.length === 0 ? (
-              <p className="text-slate-500 text-sm text-center">Ningún amigo en línea ahora</p>
-            ) : (
-              onlineFriends.slice(0, 5).map((friend, index) => (
-                <div key={friend.steamId} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <img src={friend.avatar} alt="" className="w-6 h-6 rounded-full" />
-                    <span className="text-slate-300 truncate">{friend.username}</span>
-                  </div>
-                  <span className="text-green-400 text-xs flex-shrink-0">
-                    {friend.currentGame ? `🎮 ${friend.currentGame}` : 'Online'}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Organizer */}
-      <div className="lg:col-span-2 space-y-6">
-        <div className="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 border border-slate-700 rounded-2xl p-8 text-center">
-          <h2 className="text-3xl font-bold text-white mb-2">¿A qué jugamos hoy?</h2>
-          <p className="text-slate-300">
-            {selectedFriends.length > 0 
-              ? `${selectedFriends.length} amigo${selectedFriends.length > 1 ? 's' : ''} seleccionado${selectedFriends.length > 1 ? 's' : ''}`
-              : "Selecciona amigos de la lista para organizar una sesión."}
-          </p>
-        </div>
-
-        {selectedFriends.length > 0 && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-            <h3 className="text-lg font-bold text-white mb-4">Amigos seleccionados</h3>
-            <div className="flex flex-wrap gap-3">
-              {selectedFriends.map(id => {
-                const friend = friends.find(f => f.steamId === id);
-                if (!friend) return null;
-                return (
-                  <div key={id} className="flex items-center gap-2 bg-slate-800 rounded-full px-3 py-2">
-                    <img src={friend.avatar} alt="" className="w-6 h-6 rounded-full" />
-                    <span className="text-sm text-slate-200">{friend.username}</span>
-                    <button onClick={() => toggleFriend(id)} className="text-slate-500 hover:text-red-400">×</button>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="text-sm text-slate-400 mt-4">
-              💡 Para encontrar juegos en común, puedes usar el asistente de IA (botón azul abajo a la derecha). 
-              Pregúntale por recomendaciones para jugar en grupo.
-            </p>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

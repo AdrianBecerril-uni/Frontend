@@ -1,5 +1,4 @@
-import { RouterProvider } from 'react-router';
-import { createBrowserRouter, Outlet } from 'react-router';
+import { RouterProvider, createBrowserRouter } from 'react-router';
 import { Toaster } from 'sonner';
 import { Layout } from './components/layout/Layout';
 import { Home } from './pages/Home';
@@ -9,10 +8,12 @@ import { ListDetail } from './pages/ListDetail';
 import { Profile } from './pages/Profile';
 import { Login } from './pages/Login';
 import { Friends } from './pages/Friends';
+import { GameDetail } from './pages/GameDetail';
+import { Admin } from './pages/Admin';
+import { AuthProvider } from './context/AuthContext';
 
-// Placeholder components until we implement them
 function NotFound() {
-  return <div className="p-4 text-center">404 - Page Not Found</div>;
+  return <div className="p-4 text-center text-slate-400">404 - Page Not Found</div>;
 }
 
 const router = createBrowserRouter([
@@ -22,10 +23,12 @@ const router = createBrowserRouter([
     children: [
       { index: true, Component: Home },
       { path: "market", Component: Market },
+      { path: "game/:id", Component: GameDetail },
       { path: "lists", Component: Lists },
       { path: "lists/:id", Component: ListDetail },
       { path: "friends", Component: Friends },
       { path: "profile", Component: Profile },
+      { path: "admin", Component: Admin },
       { path: "login", Component: Login },
       { path: "*", Component: NotFound },
     ],
@@ -34,9 +37,9 @@ const router = createBrowserRouter([
 
 export default function App() {
   return (
-    <>
+    <AuthProvider>
       <RouterProvider router={router} />
       <Toaster position="top-center" />
-    </>
+    </AuthProvider>
   );
 }

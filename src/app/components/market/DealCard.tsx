@@ -1,4 +1,5 @@
 import { ExternalLink, Star } from "lucide-react";
+import { Link } from "react-router";
 
 export interface Deal {
   dealID: string;
@@ -25,44 +26,51 @@ interface DealCardProps {
 
 export function DealCard({ deal }: DealCardProps) {
   const savings = Math.round(parseFloat(deal.savings));
+  const hasDiscount = savings > 0;
   
   return (
-    <div className="group relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300 flex flex-col h-full">
-      <div className="relative aspect-video overflow-hidden bg-slate-800">
+    <div className="group relative bg-slate-900 border border-slate-800 rounded-lg overflow-hidden hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300 flex flex-col h-full text-sm">
+      <Link to={`/game/${deal.steamAppID || deal.gameID}`} className="block relative aspect-video overflow-hidden bg-slate-800">
         <img 
           src={deal.thumb} 
           alt={deal.title} 
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
         />
-        <div className="absolute top-2 right-2 bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded shadow-lg">
-          -{savings}%
-        </div>
+        {hasDiscount && (
+          <div className="absolute top-1 right-1 bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg">
+            -{savings}%
+          </div>
+        )}
         {deal.metacriticScore && parseInt(deal.metacriticScore) > 0 && (
-           <div className="absolute bottom-2 left-2 bg-slate-950/80 backdrop-blur text-yellow-400 text-xs font-bold px-2 py-1 rounded flex items-center gap-1">
-             <Star size={12} fill="currentColor" />
+           <div className="absolute bottom-1 left-1 bg-slate-950/80 backdrop-blur text-yellow-400 text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
+             <Star size={10} fill="currentColor" />
              {deal.metacriticScore}
            </div>
         )}
-      </div>
+      </Link>
       
-      <div className="p-4 flex flex-col flex-1">
-        <h3 className="font-semibold text-slate-100 line-clamp-1 mb-1" title={deal.title}>
-          {deal.title}
-        </h3>
+      <div className="p-3 flex flex-col flex-1">
+        <Link to={`/game/${deal.steamAppID || deal.gameID}`}>
+          <h3 className="font-semibold text-slate-100 line-clamp-1 mb-1 hover:text-blue-400 transition-colors text-sm" title={deal.title}>
+            {deal.title}
+          </h3>
+        </Link>
         
-        <div className="flex items-center gap-2 mb-4">
-           <span className="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
+        <div className="flex items-center gap-2 mb-2">
+           <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
              Rating: {deal.dealRating}/10
            </span>
         </div>
 
         <div className="mt-auto flex items-center justify-between">
           <div className="flex flex-col">
-            <span className="text-xs text-slate-500 line-through decoration-slate-500 decoration-1">
-              ${deal.normalPrice}
-            </span>
-            <span className="text-xl font-bold text-emerald-400">
+            {hasDiscount && (
+              <span className="text-[10px] text-slate-500 line-through decoration-slate-500 decoration-1">
+                ${deal.normalPrice}
+              </span>
+            )}
+            <span className={`text-base font-bold ${hasDiscount ? 'text-emerald-400' : 'text-slate-200'}`}>
               ${deal.salePrice}
             </span>
           </div>
@@ -71,10 +79,11 @@ export function DealCard({ deal }: DealCardProps) {
             href={`https://www.cheapshark.com/redirect?dealID=${deal.dealID}`}
             target="_blank" 
             rel="noopener noreferrer"
-            className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors z-10"
             title="Ver en tienda"
+            onClick={(e) => e.stopPropagation()} 
           >
-            <ExternalLink size={20} />
+            <ExternalLink size={14} />
           </a>
         </div>
       </div>

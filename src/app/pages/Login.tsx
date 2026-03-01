@@ -1,107 +1,76 @@
-import { useNavigate, useSearchParams } from "react-router";
-import { useEffect, useState } from "react";
-import api from '@/lib/api';
-import { toast } from "sonner";
-import { Gamepad2, Loader2 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { Navigate } from "react-router";
+import { Gamepad2, TrendingUp, Users, Shield, BarChart3, DollarSign, Bot } from "lucide-react";
 
 export function Login() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const [isLoading, setIsLoading] = useState(false);
+  const { user, login } = useAuth();
 
-  // Handle Steam callback redirect
-  useEffect(() => {
-    const steamId = searchParams.get('steamId');
-    const username = searchParams.get('username');
-    const avatar = searchParams.get('avatar');
-    const error = searchParams.get('error');
+  if (user) {
+    return <Navigate to="/profile" replace />;
+  }
 
-    if (error) {
-      toast.error('Error al autenticarse con Steam. Inténtalo de nuevo.');
-      return;
-    }
-
-    if (steamId && username) {
-      // Data received from Steam callback
-      const paramsUser = {
-        steamId,
-        username,
-        avatar: avatar || '',
-        profileUrl: searchParams.get('profileUrl') || '',
-      };
-
-      // Validate session with backend (cookie is same-origin via Vercel proxy)
-      api.get('/api/auth/me')
-        .then((res) => {
-          if (res.data?.authenticated) {
-            // Prefer server user when available
-            const serverUser = res.data.user || paramsUser;
-            localStorage.setItem('user', JSON.stringify(serverUser));
-            localStorage.setItem('steamId', serverUser.steamId);
-            toast.success(`¡Bienvenido, ${serverUser.username}!`);
-            navigate('/');
-          } else {
-            // Fallback: use params data if session not yet available
-            localStorage.setItem('user', JSON.stringify(paramsUser));
-            localStorage.setItem('steamId', steamId);
-            toast.success(`¡Bienvenido, ${username}!`);
-            navigate('/');
-          }
-        })
-        .catch((err) => {
-          console.warn('Error validating session with backend:', err);
-          // Fallback: use params data
-          localStorage.setItem('user', JSON.stringify(paramsUser));
-          localStorage.setItem('steamId', steamId);
-          toast.success(`¡Bienvenido, ${username}!`);
-          navigate('/');
-        });
-    }
-  }, [searchParams, navigate]);
-
-  const handleSteamLogin = () => {
-    setIsLoading(true);
-    // Redirect to Steam auth via Vercel proxy → backend
-    window.location.href = '/api/auth/steam';
-  };
+  const features = [
+    { icon: BarChart3, title: "Estadísticas Detalladas", desc: "Analiza tu tiempo de juego, logros y hábitos con gráficas interactivas." },
+    { icon: Users, title: "Squad Analytics", desc: "Compara tu perfil con el de tus amigos y descubre afinidades de juego." },
+    { icon: DollarSign, title: "Rastreador de Precios", desc: "Encuentra las mejores ofertas y recibe alertas de precios." },
+    { icon: Bot, title: "Asistente IA", desc: "Un copiloto inteligente que conoce tu biblioteca y te recomienda joyas ocultas." },
+  ];
 
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none"></div>
+    <div className="flex items-center justify-center min-h-[85vh] md:min-h-screen relative overflow-hidden">
+      {/* Background effects */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-900/20 via-slate-950 to-cyan-900/10" />
+      <div className="absolute top-20 left-1/4 w-96 h-96 bg-blue-600/5 rounded-full blur-3xl" />
+      <div className="absolute bottom-20 right-1/4 w-80 h-80 bg-cyan-500/5 rounded-full blur-3xl" />
 
-        <div className="mb-8 relative z-10 flex justify-center">
-          <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 transform rotate-3">
-            <Gamepad2 size={40} className="text-white" />
+      <div className="relative z-10 w-full max-w-xl mx-auto text-center px-4">
+        {/* Logo */}
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-600/30">
+            <Gamepad2 className="text-white" size={32} />
           </div>
         </div>
-
-        <h1 className="text-3xl font-bold text-white mb-2 relative z-10">SteaMates</h1>
-        <p className="text-slate-400 mb-8 relative z-10">
-          Tu compañero definitivo para Steam. Descubre ofertas, comparte listas y juega con amigos.
+        <h1 className="text-5xl md:text-6xl font-black text-white mb-4 bg-gradient-to-r from-white via-blue-200 to-cyan-200 bg-clip-text text-transparent">
+          SteaMates
+        </h1>
+        <p className="text-slate-400 text-lg md:text-xl max-w-md mx-auto mb-10 leading-relaxed">
+          Analítica social gaming. Compara, descubre y comparte con tu squad.
         </p>
 
+        {/* Login Button */}
         <button
-          onClick={handleSteamLogin}
-          disabled={isLoading}
-          className="w-full bg-[#171a21] hover:bg-[#2a475e] text-[#c5c3c0] hover:text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-3 border border-[#2a475e] group relative z-10 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={login}
+          className="group bg-gradient-to-r from-[#1b2838] to-[#2a475e] hover:from-[#2a475e] hover:to-[#3d6180] text-white py-4 px-10 rounded-xl font-bold text-lg transition-all duration-300 ease-out hover:shadow-lg hover:shadow-blue-900/30 hover:scale-105 active:scale-100 border border-white/10 flex items-center gap-3 mx-auto"
         >
-          {isLoading ? (
-            <Loader2 size={24} className="animate-spin" />
-          ) : (
-            <img
-              src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg"
-              alt="Steam Logo"
-              className="w-6 h-6 group-hover:scale-110 transition-transform"
-            />
-          )}
-          <span>{isLoading ? 'Conectando con Steam...' : 'Iniciar Sesión con Steam'}</span>
+          <img
+            src="https://store.akamai.steamstatic.com/public/shared/images/header/logo_steam.svg"
+            alt="Steam"
+            className="w-7 h-7 brightness-200 group-hover:scale-110 transition-transform"
+          />
+          Iniciar Sesión con Steam
         </button>
 
-        <p className="mt-6 text-xs text-slate-500 relative z-10">
-          Al iniciar sesión, serás redirigido a Steam para autenticarte de forma segura mediante OpenID. No almacenamos tu contraseña.
+        <p className="text-xs text-slate-600 mt-4">
+          Se utiliza autenticación de Steam OpenID. Nunca almacenamos tu contraseña.
         </p>
+
+        {/* Features Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-12">
+          {features.map(f => (
+            <div
+              key={f.title}
+              className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-left hover:border-blue-500/30 transition-colors group"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-400 group-hover:text-blue-300">
+                  <f.icon size={18} />
+                </div>
+                <h3 className="text-sm font-bold text-white">{f.title}</h3>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">{f.desc}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
