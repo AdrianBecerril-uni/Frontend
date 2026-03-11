@@ -483,7 +483,7 @@ export function GameDetail() {
     if (!list.includes(identifier)) {
       list.push(identifier);
       localStorage.setItem(key, JSON.stringify(list));
-      toast.success("Juego anadido a tu wishlist");
+      toast.success("Juego añadido a tu wishlist");
       return;
     }
 
@@ -505,7 +505,7 @@ export function GameDetail() {
             size={34}
           />
           <p className="text-slate-400 text-sm">
-            Cargando analisis del juego...
+            Cargando análisis del juego...
           </p>
         </div>
       </div>
@@ -581,7 +581,7 @@ export function GameDetail() {
               onClick={handleWishlist}
               className="h-12 rounded-[10px] border border-[#314158] bg-[#1d293d] text-white font-bold text-[16px] inline-flex items-center justify-center gap-2 w-full"
             >
-              <Heart size={18} /> Anadir a Wishlist
+              <Heart size={18} /> Añadir a Wishlist
             </button>
 
             <button
@@ -620,7 +620,7 @@ export function GameDetail() {
               Analisis de Precio
             </h1>
             <p className="text-[#90a1b9] text-[16px] mt-1">
-              Historico de fluctuacion en los ultimos 6 meses.
+              Histórico de fluctuacion en los ultimos 6 meses.
             </p>
           </div>
 
@@ -634,7 +634,7 @@ export function GameDetail() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <article className="rounded-[14px] border border-[#1d293d] bg-[#0f172b] p-4">
               <h3 className="text-[#90a1b9] text-[14px] leading-5 font-medium">
-                Recomendacion IA
+                Recomendación IA
               </h3>
               <p className="text-white text-[16px] leading-6 font-bold mt-1">
                 {insights.recommendationTitle}
