@@ -6,6 +6,14 @@ import {
   BarChart2,
   CalendarDays,
   Check,
+  Wallet,
+  Clock,
+  Trophy,
+  Hexagon,
+  TrendingDown,
+  Crown,
+  ShoppingBag,
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { Navigate } from "react-router";
@@ -21,6 +29,465 @@ interface Friend {
 }
 
 type Tab = "amigos" | "analitica" | "sesiones";
+
+// ── Analytics helpers ──────────────────────────────────────────────────────────
+
+const PALETTE = [
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+  "#10b981",
+  "#f59e0b",
+  "#f43f5e",
+  "#06b6d4",
+];
+
+const MOCK_ECON = [
+  {
+    costPerHour: 0.12,
+    unplayedPct: 42,
+    libraryValue: 3200,
+    totalGames: 150,
+    unplayed: 63,
+  },
+  {
+    costPerHour: 0.05,
+    unplayedPct: 55,
+    libraryValue: 2400,
+    totalGames: 120,
+    unplayed: 66,
+  },
+  {
+    costPerHour: 0.5,
+    unplayedPct: 62,
+    libraryValue: 4800,
+    totalGames: 210,
+    unplayed: 130,
+  },
+  {
+    costPerHour: 0.23,
+    unplayedPct: 35,
+    libraryValue: 900,
+    totalGames: 45,
+    unplayed: 16,
+  },
+  {
+    costPerHour: 0.28,
+    unplayedPct: 70,
+    libraryValue: 6200,
+    totalGames: 300,
+    unplayed: 210,
+  },
+  {
+    costPerHour: 0.35,
+    unplayedPct: 48,
+    libraryValue: 1800,
+    totalGames: 80,
+    unplayed: 38,
+  },
+];
+
+function DonutChart({
+  pct,
+  color,
+  size = 100,
+}: {
+  pct: number;
+  color: string;
+  size?: number;
+}) {
+  const r = (size - 16) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (pct / 100) * c;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      style={{ transform: "rotate(-90deg)" }}
+    >
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke="#1e293b"
+        strokeWidth="10"
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth="10"
+        strokeDasharray={c}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+type AnalyticsSubTab = "economia" | "tiempo" | "logros" | "radar";
+
+function AnalyticsPanel({
+  selectedFriends,
+  userName,
+}: {
+  selectedFriends: Friend[];
+  userName: string;
+}) {
+  const [subTab, setSubTab] = useState<AnalyticsSubTab>("economia");
+
+  const MOCK_NAMES = [
+    "AlexGamer",
+    "SarahPro",
+    "MikeTheTank",
+    "LunaStar",
+    "RyuStreet",
+  ];
+  const friendsToShow =
+    selectedFriends.length > 0
+      ? selectedFriends.slice(0, 5)
+      : MOCK_NAMES.map((name) => ({ username: name }));
+
+  const people = [
+    { name: userName || "Yo", ...MOCK_ECON[0], color: PALETTE[0] },
+    ...friendsToShow.map((f: any, i: number) => ({
+      name: f.username,
+      ...(MOCK_ECON[i + 1] ?? MOCK_ECON[MOCK_ECON.length - 1]),
+      color: PALETTE[i + 1] ?? PALETTE[PALETTE.length - 1],
+    })),
+  ];
+
+  const rentSorted = [...people].sort((a, b) => a.costPerHour - b.costPerHour);
+  const maxCost = 0.6;
+  const bestRent = rentSorted[0].name;
+
+  const libSorted = [...people].sort((a, b) => b.libraryValue - a.libraryValue);
+  const totalValue = people.reduce((s, p) => s + p.libraryValue, 0);
+  const bestLib = libSorted[0].name;
+
+  const subTabs: {
+    id: AnalyticsSubTab;
+    label: string;
+    icon: React.ReactNode;
+  }[] = [
+    { id: "economia", label: "Economía", icon: <Wallet size={16} /> },
+    { id: "tiempo", label: "Tiempo", icon: <Clock size={16} /> },
+    { id: "logros", label: "Logros", icon: <Trophy size={16} /> },
+    { id: "radar", label: "Radar", icon: <Hexagon size={16} /> },
+  ];
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Sub-tab bar */}
+      <div className="flex items-center p-2 gap-1 bg-[rgba(15,23,43,0.6)] border border-[#1d293d] rounded-[16px]">
+        {subTabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setSubTab(t.id)}
+            className={`flex items-center gap-2 flex-1 justify-center py-2.5 rounded-[14px] text-sm font-semibold transition-all ${
+              subTab === t.id
+                ? "bg-[#009966] text-white shadow-[0px_10px_15px_0px_rgba(0,79,59,0.3)]"
+                : "text-[#90a1b9] hover:text-white"
+            }`}
+          >
+            {t.icon}
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {subTab === "economia" && (
+        <>
+          {/* Factor Económico header */}
+          <div
+            className="flex items-center gap-4 px-6 py-5 rounded-[24px] border border-[rgba(0,188,125,0.2)]"
+            style={{
+              background:
+                "linear-gradient(90deg, rgba(0,79,59,0.3) 0%, rgba(13,84,43,0.2) 50%, rgba(11,79,74,0.3) 100%)",
+            }}
+          >
+            <div className="w-[52px] h-[52px] shrink-0 bg-[rgba(0,188,125,0.2)] rounded-[16px] flex items-center justify-center">
+              <Wallet size={28} className="text-[#00bc7d]" />
+            </div>
+            <div>
+              <h2 className="text-[24px] font-bold text-white">
+                Factor Económico
+              </h2>
+              <p className="text-[#90a1b9] text-[14px]">
+                La cartera y la rentabilidad — ¿quién aprovecha mejor cada euro?
+              </p>
+            </div>
+          </div>
+
+          {/* Two-column charts */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {/* Rentabilidad Máxima */}
+            <div className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[24px] p-6 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
+              <div className="flex items-start justify-between mb-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingDown size={20} className="text-[#62748e]" />
+                    <h3 className="text-white font-bold text-[18px]">
+                      Rentabilidad Máxima
+                    </h3>
+                  </div>
+                  <p className="text-[#62748e] text-[12px] max-w-[200px] leading-relaxed">
+                    Coste por hora jugada (€/h) — menor = mejor inversor
+                  </p>
+                </div>
+                <div className="px-3 py-1 bg-[rgba(0,188,125,0.1)] border border-[rgba(0,188,125,0.2)] rounded-full flex items-center gap-1.5 shrink-0">
+                  <Crown size={12} className="text-[#00d492]" />
+                  <span className="text-[#00d492] text-[10px] font-bold">
+                    {bestRent}
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3.5">
+                {rentSorted.map((p) => (
+                  <div key={p.name} className="flex items-center gap-3">
+                    <span className="text-[#94a3b8] text-[12px] w-20 text-right truncate shrink-0">
+                      {p.name}
+                    </span>
+                    <div className="flex-1 h-4 bg-[#0f172b] rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${(p.costPerHour / maxCost) * 100}%`,
+                          backgroundColor: p.color,
+                          transition: "width 0.7s ease",
+                        }}
+                      />
+                    </div>
+                    <span className="text-[#94a3b8] text-[11px] w-10 shrink-0">
+                      {p.costPerHour.toFixed(2)}€
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-between mt-3 pl-24 pr-10">
+                {["0.00€", "0.15€", "0.30€", "0.45€", "0.60€"].map((v) => (
+                  <span key={v} className="text-[#64748b] text-[10px]">
+                    {v}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* El Diógenes Digital */}
+            <div className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[24px] p-6 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
+              <div className="mb-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <ShoppingBag size={20} className="text-[#62748e]" />
+                  <h3 className="text-white font-bold text-[18px]">
+                    El "Diógenes Digital"
+                  </h3>
+                </div>
+                <p className="text-[#62748e] text-[12px]">
+                  El backlog de la vergüenza — % de juegos con 0 horas
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {people.map((p) => (
+                  <div key={p.name} className="flex flex-col items-center">
+                    <div
+                      className="relative"
+                      style={{ width: 100, height: 100 }}
+                    >
+                      <DonutChart
+                        pct={p.unplayedPct}
+                        color={p.color}
+                        size={100}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span
+                          className="font-black text-[20px]"
+                          style={{ color: p.color }}
+                        >
+                          {p.unplayedPct}%
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-white text-[12px] font-bold mt-1 text-center truncate w-full">
+                      {p.name}
+                    </p>
+                    <p className="text-[#62748e] text-[10px] text-center">
+                      {p.unplayed} de {p.totalGames} sin abrir
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Valor Total de la Biblioteca */}
+          <div className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[24px] p-6 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <DollarSign size={20} className="text-[#62748e]" />
+                  <h3 className="text-white font-bold text-[18px]">
+                    Valor Total de la Biblioteca
+                  </h3>
+                </div>
+                <p className="text-[#62748e] text-[12px]">
+                  Valor estimado de todos los juegos (precio base, €)
+                </p>
+              </div>
+              <div className="px-3 py-1 bg-[rgba(0,201,80,0.1)] border border-[rgba(0,201,80,0.2)] rounded-full flex items-center gap-1.5 shrink-0">
+                <Crown size={12} className="text-[#05df72]" />
+                <span className="text-[#05df72] text-[10px] font-bold">
+                  {bestLib}
+                </span>
+              </div>
+            </div>
+
+            {/* Treemap */}
+            <div className="flex h-[220px] gap-[3px] rounded-[12px] overflow-hidden">
+              {libSorted.slice(0, 3).map((p, idx) => (
+                <div
+                  key={p.name}
+                  className="relative flex flex-col justify-end p-3 min-w-[55px] hover:brightness-110 transition-all cursor-default"
+                  style={{
+                    flex: p.libraryValue,
+                    background: `linear-gradient(180deg, ${p.color}1a 0%, ${p.color}44 100%)`,
+                    border: `1px solid ${p.color}44`,
+                    borderRadius: "8px",
+                  }}
+                >
+                  <span
+                    className="text-xs font-bold mb-0.5"
+                    style={{ color: idx === 0 ? "#fbbf24" : "#94a3b8" }}
+                  >
+                    {idx === 0 ? "👑" : `#${idx + 1}`}
+                  </span>
+                  <p className="text-white font-bold text-[13px] truncate">
+                    {p.name}
+                  </p>
+                  <p
+                    className="font-black text-[15px]"
+                    style={{ color: p.color }}
+                  >
+                    {p.libraryValue.toLocaleString()}€
+                  </p>
+                  <p className="text-[#94a3b8] text-[9px]">
+                    {((p.libraryValue / totalValue) * 100).toFixed(1)}% del
+                    total
+                  </p>
+                </div>
+              ))}
+
+              {libSorted.length > 3 && (
+                <div
+                  className="flex flex-col gap-[3px] min-w-[70px]"
+                  style={{
+                    flex: libSorted
+                      .slice(3)
+                      .reduce((s, p) => s + p.libraryValue, 0),
+                  }}
+                >
+                  {libSorted[3] && (
+                    <div
+                      className="relative flex flex-col justify-end p-2 hover:brightness-110 transition-all cursor-default"
+                      style={{
+                        flex: libSorted[3].libraryValue,
+                        background: `linear-gradient(180deg, ${libSorted[3].color}1a 0%, ${libSorted[3].color}44 100%)`,
+                        border: `1px solid ${libSorted[3].color}44`,
+                        borderRadius: "8px",
+                      }}
+                    >
+                      <span className="text-[#94a3b8] text-[9px] font-bold">
+                        #4
+                      </span>
+                      <p className="text-white font-bold text-[12px] truncate">
+                        {libSorted[3].name}
+                      </p>
+                      <p
+                        className="font-black text-[13px]"
+                        style={{ color: libSorted[3].color }}
+                      >
+                        {libSorted[3].libraryValue.toLocaleString()}€
+                      </p>
+                      <p className="text-[#94a3b8] text-[8px]">
+                        {(
+                          (libSorted[3].libraryValue / totalValue) *
+                          100
+                        ).toFixed(1)}
+                        % del total
+                      </p>
+                    </div>
+                  )}
+                  {libSorted.length > 4 && (
+                    <div
+                      className="flex gap-[3px]"
+                      style={{
+                        flex: libSorted
+                          .slice(4)
+                          .reduce((s, p) => s + p.libraryValue, 0),
+                      }}
+                    >
+                      {libSorted.slice(4).map((p, idx) => (
+                        <div
+                          key={p.name}
+                          className="relative flex flex-col justify-end p-2 hover:brightness-110 transition-all cursor-default min-w-0"
+                          style={{
+                            flex: p.libraryValue,
+                            background: `linear-gradient(180deg, ${p.color}1a 0%, ${p.color}44 100%)`,
+                            border: `1px solid ${p.color}44`,
+                            borderRadius: "8px",
+                          }}
+                        >
+                          <span className="text-[#94a3b8] text-[9px] font-bold">
+                            #{idx + 5}
+                          </span>
+                          <p className="text-white font-bold text-[10px] truncate">
+                            {p.name}
+                          </p>
+                          <p
+                            className="font-black text-[11px]"
+                            style={{ color: p.color }}
+                          >
+                            {p.libraryValue.toLocaleString()}€
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-center gap-2 mt-4">
+              <span className="text-[#62748e] text-[12px]">
+                Valor total combinado:
+              </span>
+              <span className="text-[#05df72] font-black text-[14px]">
+                {totalValue.toLocaleString()}€
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {subTab !== "economia" && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-16 h-16 rounded-full bg-[rgba(15,23,43,0.8)] border border-[#1d293d] flex items-center justify-center mb-4">
+            <BarChart2 size={32} className="text-[#51a2ff]" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Próximamente</h2>
+          <p className="text-[#62748e] text-sm">
+            Esta sección estará disponible próximamente.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── End Analytics Panel ─────────────────────────────────────────────────────
 
 export function Friends() {
   const { user } = useAuth();
@@ -292,18 +759,12 @@ export function Friends() {
           )}
 
           {activeTab === "analitica" && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-full bg-[rgba(28,57,142,0.3)] flex items-center justify-center mb-4">
-                <BarChart2 size={32} className="text-[#51a2ff]" />
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-2">
-                Analítica comparativa
-              </h2>
-              <p className="text-[#90a1b9] max-w-md">
-                Selecciona amigos del panel izquierdo y compara logros, tiempos
-                de juego y bibliotecas.
-              </p>
-            </div>
+            <AnalyticsPanel
+              selectedFriends={friends.filter((f) =>
+                selectedIds.has(f.steamId),
+              )}
+              userName={user.personaname}
+            />
           )}
 
           {activeTab === "sesiones" && (
