@@ -14,6 +14,7 @@ import {
   Crown,
   ShoppingBag,
   DollarSign,
+  Star,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { Navigate } from "react-router";
@@ -85,6 +86,15 @@ const MOCK_ECON = [
     totalGames: 80,
     unplayed: 38,
   },
+];
+
+const MOCK_TIME = [
+  { totalHours: 3000, topGame: "Skyrim", topGameHours: 600 }, // Yo
+  { totalHours: 4500, topGame: "Dota 2", topGameHours: 3200 }, // Friend1
+  { totalHours: 3200, topGame: "The Witcher 3", topGameHours: 480 }, // Friend2
+  { totalHours: 1200, topGame: "Counter-Strike 2", topGameHours: 800 }, // Friend3
+  { totalHours: 9000, topGame: "Stardew Valley", topGameHours: 2400 }, // Friend4
+  { totalHours: 2100, topGame: "Street Fighter 6", topGameHours: 900 }, // Friend5
 ];
 
 function DonutChart({
@@ -169,15 +179,55 @@ function AnalyticsPanel({
   const totalValue = people.reduce((s, p) => s + p.libraryValue, 0);
   const bestLib = libSorted[0].name;
 
+  // Tiempo data
+  const peopleWithTime = people.map((p, i) => ({
+    ...p,
+    totalHours: (MOCK_TIME[i] ?? MOCK_TIME[MOCK_TIME.length - 1]).totalHours,
+    topGame: (MOCK_TIME[i] ?? MOCK_TIME[MOCK_TIME.length - 1]).topGame,
+    topGameHours: (MOCK_TIME[i] ?? MOCK_TIME[MOCK_TIME.length - 1])
+      .topGameHours,
+  }));
+  const hoursSorted = [...peopleWithTime].sort(
+    (a, b) => b.totalHours - a.totalHours,
+  );
+  const maxHours = 10000;
+  const bestTime = hoursSorted[0].name;
+  const bestTimeDays = Math.floor(hoursSorted[0].totalHours / 24);
+  const bestTimeYears = (bestTimeDays / 365).toFixed(1);
+
   const subTabs: {
     id: AnalyticsSubTab;
     label: string;
     icon: React.ReactNode;
+    activeClass: string;
   }[] = [
-    { id: "economia", label: "Economía", icon: <Wallet size={16} /> },
-    { id: "tiempo", label: "Tiempo", icon: <Clock size={16} /> },
-    { id: "logros", label: "Logros", icon: <Trophy size={16} /> },
-    { id: "radar", label: "Radar", icon: <Hexagon size={16} /> },
+    {
+      id: "economia",
+      label: "Economía",
+      icon: <Wallet size={16} />,
+      activeClass: "bg-[#009966] shadow-[0px_10px_15px_0px_rgba(0,79,59,0.3)]",
+    },
+    {
+      id: "tiempo",
+      label: "Tiempo",
+      icon: <Clock size={16} />,
+      activeClass:
+        "bg-[#155dfc] shadow-[0px_10px_15px_0px_rgba(28,57,142,0.3)]",
+    },
+    {
+      id: "logros",
+      label: "Logros",
+      icon: <Trophy size={16} />,
+      activeClass:
+        "bg-[#7c3aed] shadow-[0px_10px_15px_0px_rgba(109,40,217,0.3)]",
+    },
+    {
+      id: "radar",
+      label: "Radar",
+      icon: <Hexagon size={16} />,
+      activeClass:
+        "bg-[#0891b2] shadow-[0px_10px_15px_0px_rgba(8,145,178,0.3)]",
+    },
   ];
 
   return (
@@ -190,7 +240,7 @@ function AnalyticsPanel({
             onClick={() => setSubTab(t.id)}
             className={`flex items-center gap-2 flex-1 justify-center py-2.5 rounded-[14px] text-sm font-semibold transition-all ${
               subTab === t.id
-                ? "bg-[#009966] text-white shadow-[0px_10px_15px_0px_rgba(0,79,59,0.3)]"
+                ? `${t.activeClass} text-white`
                 : "text-[#90a1b9] hover:text-white"
             }`}
           >
@@ -472,7 +522,206 @@ function AnalyticsPanel({
         </>
       )}
 
-      {subTab !== "economia" && (
+      {subTab === "tiempo" && (
+        <>
+          {/* Factor Tiempo banner */}
+          <div
+            className="flex items-center gap-4 px-6 py-5 rounded-[24px] border border-[rgba(43,127,255,0.2)]"
+            style={{
+              background:
+                "linear-gradient(90deg, rgba(28,57,142,0.3) 0%, rgba(49,44,133,0.2) 50%, rgba(16,78,100,0.3) 100%)",
+            }}
+          >
+            <div className="w-[52px] h-[52px] shrink-0 bg-[rgba(43,127,255,0.2)] rounded-[16px] flex items-center justify-center">
+              <Clock size={28} className="text-[#51a2ff]" />
+            </div>
+            <div>
+              <h2 className="text-[24px] font-bold text-white">
+                Factor Tiempo
+              </h2>
+              <p className="text-[#90a1b9] text-[14px]">
+                Las horas de vuelo — el medidor definitivo de dedicación (o de
+                falta de vida social)
+              </p>
+            </div>
+          </div>
+
+          {/* El "No Life" Absoluto — vertical bar chart */}
+          <div className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[24px] p-6 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock size={20} className="text-[#62748e]" />
+                  <h3 className="text-white font-bold text-[18px]">
+                    El &quot;No Life&quot; Absoluto
+                  </h3>
+                </div>
+                <p className="text-[#62748e] text-[12px]">
+                  Total histórico de horas registradas en Steam
+                </p>
+              </div>
+              <div className="px-3 py-1 bg-[rgba(43,127,255,0.1)] border border-[rgba(43,127,255,0.2)] rounded-full flex items-center gap-1.5 shrink-0">
+                <Crown size={12} className="text-[#51a2ff]" />
+                <span className="text-[#51a2ff] text-[10px] font-bold">
+                  {bestTime}
+                </span>
+              </div>
+            </div>
+
+            {/* Chart */}
+            <div className="relative" style={{ height: 280 }}>
+              {/* Y-axis labels */}
+              <div
+                className="absolute left-0 top-0 flex flex-col justify-between"
+                style={{ height: "calc(100% - 28px)" }}
+              >
+                {[
+                  maxHours,
+                  maxHours * 0.75,
+                  maxHours * 0.5,
+                  maxHours * 0.25,
+                  0,
+                ].map((v) => (
+                  <span
+                    key={v}
+                    className="text-[#64748b] text-[10px] text-right w-9 leading-none"
+                  >
+                    {(v / 1000).toFixed(1)}k
+                  </span>
+                ))}
+              </div>
+              {/* Grid lines */}
+              <div
+                className="absolute left-11 right-0 top-0 flex flex-col justify-between"
+                style={{ height: "calc(100% - 28px)" }}
+              >
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="border-t border-[rgba(30,41,59,0.7)]"
+                  />
+                ))}
+              </div>
+              {/* Bars + x-labels */}
+              <div className="absolute left-11 right-0 top-0 bottom-0 flex items-end justify-around gap-3 px-4">
+                {hoursSorted.map((p) => (
+                  <div
+                    key={p.name}
+                    className="flex flex-col items-center justify-end gap-1.5 flex-1 h-full pb-7"
+                  >
+                    <div
+                      className="w-full rounded-t-[8px] min-h-[4px] transition-all duration-700"
+                      style={{
+                        height: `${(p.totalHours / maxHours) * (280 - 28)}px`,
+                        backgroundColor: p.color,
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+              {/* X-axis labels */}
+              <div className="absolute left-11 right-0 bottom-0 h-7 flex items-center justify-around px-4">
+                {hoursSorted.map((p) => (
+                  <span
+                    key={p.name}
+                    className="flex-1 text-center text-[#64748b] text-[10px] truncate px-1"
+                  >
+                    {p.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer stat */}
+            <div className="bg-[rgba(29,41,61,0.4)] rounded-[14px] py-3 px-4 mt-4 text-center text-[12px]">
+              <span className="text-[#62748e]">{bestTime} lleva </span>
+              <span className="text-white font-bold">{bestTimeDays} días</span>
+              <span className="text-[#62748e]">
+                {" "}
+                completos jugando ({bestTimeYears} años)
+              </span>
+            </div>
+          </div>
+
+          {/* Obsesión Monomática — top game per person */}
+          <div className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[24px] p-6 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
+            <div className="flex items-center gap-2 mb-1">
+              <Star size={20} className="text-[#62748e]" />
+              <h3 className="text-white font-bold text-[18px]">
+                Obsesión Monomática
+              </h3>
+            </div>
+            <p className="text-[#62748e] text-[12px] mb-5">
+              El Top 1 de cada jugador y su % sobre el total de horas
+            </p>
+            <div className="flex flex-col gap-4">
+              {peopleWithTime.map((p) => {
+                const pct = Math.round((p.topGameHours / p.totalHours) * 100);
+                return (
+                  <div
+                    key={p.name}
+                    className="bg-[rgba(29,41,61,0.4)] border border-[rgba(49,65,88,0.3)] rounded-[16px] px-4 pt-4 pb-3"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                          style={{ backgroundColor: `${p.color}22` }}
+                        >
+                          <span
+                            className="font-black text-[12px]"
+                            style={{ color: p.color }}
+                          >
+                            {p.name[0].toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="text-white font-bold text-[14px]">
+                          {p.name}
+                        </span>
+                      </div>
+                      <span className="text-[#62748e] text-[10px]">
+                        {p.totalHours.toLocaleString()}h totales
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[#cad5e2] text-[12px] font-semibold">
+                        {p.topGame}
+                      </span>
+                      <span
+                        className="font-black text-[12px]"
+                        style={{ color: p.color }}
+                      >
+                        {p.topGameHours}h
+                      </span>
+                    </div>
+                    <div className="w-full h-3 bg-[#314158] rounded-full overflow-hidden mb-1.5">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${pct}%`,
+                          background: `linear-gradient(90deg, ${p.color}, ${p.color}66)`,
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#45556c] text-[10px]">0%</span>
+                      <span
+                        className="font-bold text-[10px]"
+                        style={{ color: p.color }}
+                      >
+                        % del total
+                      </span>
+                      <span className="text-[#45556c] text-[10px]">100%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {(subTab === "logros" || subTab === "radar") && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="w-16 h-16 rounded-full bg-[rgba(15,23,43,0.8)] border border-[#1d293d] flex items-center justify-center mb-4">
             <BarChart2 size={32} className="text-[#51a2ff]" />
