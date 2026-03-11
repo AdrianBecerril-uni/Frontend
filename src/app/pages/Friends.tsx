@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { Users, Gamepad2, Loader2, Search, ExternalLink } from "lucide-react";
+import {
+  Users,
+  Gamepad2,
+  Loader2,
+  BarChart2,
+  CalendarDays,
+  Check,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { Navigate } from "react-router";
 import api from "../../lib/api";
@@ -13,15 +20,17 @@ interface Friend {
   friendSince?: number;
 }
 
+type Tab = "amigos" | "analitica" | "sesiones";
+
 export function Friends() {
   const { user } = useAuth();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<Tab>("amigos");
 
   useEffect(() => {
     if (!user) return;
-
     const loadFriends = async () => {
       setLoading(true);
       try {
@@ -38,160 +47,281 @@ export function Friends() {
 
   if (!user) return <Navigate to="/login" replace />;
 
-  const filteredFriends = friends.filter(f =>
-    f.username.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const onlineFriends = filteredFriends.filter(f => f.status > 0);
-  const offlineFriends = filteredFriends.filter(f => f.status === 0);
-
   const getStatusText = (friend: Friend) => {
-    if (friend.currentGame) return `Jugando ${friend.currentGame}`;
+    if (friend.currentGame) return `playing ${friend.currentGame}`;
     switch (friend.status) {
-      case 1: return "Online";
-      case 2: return "Ocupado";
-      case 3: return "Ausente";
-      case 4: return "Durmiendo";
-      case 5: return "Buscando intercambio";
-      case 6: return "Buscando juego";
-      default: return "Offline";
+      case 1:
+        return "Online";
+      case 2:
+        return "Ocupado";
+      case 3:
+        return "Ausente";
+      case 4:
+        return "Durmiendo";
+      default:
+        return "Offline";
     }
   };
 
-  const getStatusColor = (friend: Friend) => {
-    if (friend.currentGame) return "text-green-400";
-    if (friend.status > 0) return "text-blue-400";
-    return "text-slate-500";
+  const isOnline = (friend: Friend) =>
+    friend.status > 0 || !!friend.currentGame;
+  const isPlayingGame = (friend: Friend) => !!friend.currentGame;
+
+  const getStatusDot = (friend: Friend) => {
+    if (isPlayingGame(friend))
+      return "bg-[#00c950] shadow-[0px_0px_8px_0px_rgba(34,197,94,0.6)]";
+    if (isOnline(friend))
+      return "bg-[#00c950] shadow-[0px_0px_8px_0px_rgba(34,197,94,0.6)]";
+    return "bg-[#62748e]";
   };
 
-  const getStatusDotColor = (friend: Friend) => {
-    if (friend.currentGame) return "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]";
-    if (friend.status > 0) return "bg-blue-500";
-    return "bg-slate-500";
+  const getStatusTextColor = (friend: Friend) => {
+    if (isPlayingGame(friend)) return "text-[#05df72]";
+    if (isOnline(friend)) return "text-[#62748e]";
+    return "text-[#62748e]";
   };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: "amigos", label: "Amigos", icon: <Users size={18} /> },
+    { id: "analitica", label: "Analítica", icon: <BarChart2 size={18} /> },
+    { id: "sesiones", label: "Sesiones", icon: <Gamepad2 size={18} /> },
+  ];
 
   return (
-    <div className="max-w-5xl mx-auto px-4 pb-20 pt-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-white mb-3">Centro Social</h1>
-        <p className="text-slate-400 text-lg">Tu lista de amigos de Steam</p>
-      </div>
-
-      {/* Stats Bar */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        {[
-          { label: "Total amigos", value: friends.length, color: "text-blue-400" },
-          { label: "Online", value: onlineFriends.length, color: "text-green-400" },
-          { label: "Offline", value: offlineFriends.length, color: "text-slate-400" },
-        ].map(s => (
-          <div key={s.label} className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 text-center">
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-slate-500 mt-1">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Search */}
-      <div className="relative mb-6">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-        <input
-          type="text"
-          placeholder="Buscar amigos..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-        />
-      </div>
-
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="text-center">
-            <Loader2 className="animate-spin text-blue-500 mx-auto mb-3" size={32} />
-            <p className="text-slate-400 text-sm">Cargando amigos...</p>
-          </div>
+    <div className="flex flex-col gap-10 pb-10">
+      {/* Header row */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-bold text-white leading-tight">
+            Centro Social
+          </h1>
+          <p className="text-[#90a1b9] text-lg mt-2">
+            Gestiona tus amigos, compara estadísticas y organiza partidas.
+          </p>
         </div>
-      ) : friends.length === 0 ? (
-        <div className="text-center py-20">
-          <Users size={48} className="text-slate-700 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-white mb-2">Sin amigos</h3>
-          <p className="text-slate-500 text-sm">Tu lista de amigos de Steam está vacía o es privada</p>
+
+        {/* Tab switcher */}
+        <div className="flex items-center p-[7px] gap-1 bg-[#0f172b] border border-[#1d293d] rounded-[14px] shadow-sm self-start sm:self-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-5 py-2 rounded-[10px] text-sm font-semibold transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? "bg-[#155dfc] text-white shadow-[0px_10px_15px_0px_rgba(28,57,142,0.2),0px_4px_6px_0px_rgba(28,57,142,0.2)]"
+                  : "text-[#90a1b9] hover:text-white"
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
         </div>
-      ) : (
-        <div className="space-y-6">
-          {/* Online Friends */}
-          {onlineFriends.length > 0 && (
-            <div>
-              <h2 className="text-sm font-bold text-green-400 mb-3 flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                Online — {onlineFriends.length}
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {onlineFriends.map(friend => (
-                  <div
-                    key={friend.steamId}
-                    className="flex items-center gap-3 p-4 bg-slate-900/80 border border-slate-800 rounded-xl hover:border-blue-500/30 transition-all group"
-                  >
-                    <div className="relative shrink-0">
-                      <img src={friend.avatar} alt={friend.username} className="w-12 h-12 rounded-full object-cover ring-2 ring-slate-800" />
-                      <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${getStatusDotColor(friend)}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-white truncate text-sm">{friend.username}</h4>
-                      <p className={`text-xs ${getStatusColor(friend)} truncate mt-0.5`}>
-                        {friend.currentGame && <Gamepad2 size={10} className="inline mr-1" />}
-                        {getStatusText(friend)}
-                      </p>
-                    </div>
-                    <a
-                      href={`https://steamcommunity.com/profiles/${friend.steamId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-slate-600 hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <ExternalLink size={14} />
-                    </a>
+      </div>
+
+      {/* Main content */}
+      <div className="flex gap-6 items-start">
+        {/* Left panel: friend selector */}
+        <div className="w-[261px] shrink-0 bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[24px] p-5 flex flex-col gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Check size={18} className="text-[#51a2ff]" />
+              <h3 className="text-white font-bold text-[18px]">
+                Selecciona Amigos
+              </h3>
+            </div>
+            <p className="text-[#62748e] text-[12px] leading-relaxed">
+              Selecciona amigos de la lista para incluirlos en las comparativas
+              y sesiones.
+            </p>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="animate-spin text-blue-500" size={24} />
+            </div>
+          ) : friends.length === 0 ? (
+            <div className="py-8 text-center">
+              <Users size={32} className="text-[#314158] mx-auto mb-2" />
+              <p className="text-[#62748e] text-xs">Lista vacía o privada</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 overflow-y-auto max-h-[480px] pr-1">
+              {friends.map((friend) => (
+                <button
+                  key={friend.steamId}
+                  onClick={() => toggleSelect(friend.steamId)}
+                  className={`flex items-center gap-3 p-3 rounded-[14px] border text-left transition-all w-full ${
+                    selectedIds.has(friend.steamId)
+                      ? "bg-[rgba(21,93,252,0.1)] border-[rgba(21,93,252,0.4)]"
+                      : "bg-[rgba(29,41,61,0.3)] border-[rgba(49,65,88,0.3)] hover:border-[#314158]"
+                  }`}
+                >
+                  {/* Avatar */}
+                  <div className="relative shrink-0">
+                    <img
+                      src={friend.avatar}
+                      alt={friend.username}
+                      className="w-10 h-10 rounded-full object-cover ring-2 ring-[#1d293d]"
+                    />
+                    <span
+                      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#0f172b] ${getStatusDot(friend)}`}
+                    />
                   </div>
-                ))}
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[#cad5e2] text-[14px] font-medium truncate">
+                      {friend.username}
+                    </p>
+                    <p
+                      className={`text-[11px] truncate ${getStatusTextColor(friend)}`}
+                    >
+                      {getStatusText(friend)}
+                    </p>
+                  </div>
+                  {/* Check indicator */}
+                  {selectedIds.has(friend.steamId) && (
+                    <div className="shrink-0 w-4 h-4 rounded-full bg-[#155dfc] flex items-center justify-center">
+                      <Check size={10} className="text-white" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Footer count */}
+          <div className="border-t border-[#1d293d] pt-3 text-center">
+            <p className="text-[#62748e] text-[12px] font-medium">
+              {selectedIds.size} amigo{selectedIds.size !== 1 ? "s" : ""}{" "}
+              seleccionado{selectedIds.size !== 1 ? "s" : ""}
+            </p>
+          </div>
+        </div>
+
+        {/* Right panel: main content area */}
+        <div className="flex-1 min-w-0">
+          {activeTab === "amigos" && selectedIds.size === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              {/* Icon circle */}
+              <div className="relative mb-8">
+                <div className="w-32 h-32 rounded-full bg-[rgba(15,23,43,0.4)] border border-[#1d293d] flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full bg-[rgba(43,127,255,0.1)] blur-[40px]" />
+                  <Users size={64} className="text-[#51a2ff] relative z-10" />
+                </div>
+              </div>
+
+              <h2 className="text-[30px] font-bold text-white mb-4">
+                Gestiona tu red de amigos
+              </h2>
+              <p className="text-[#90a1b9] text-lg max-w-[476px] leading-relaxed mb-12">
+                Utiliza las pestañas superiores para analizar estadísticas
+                comparativas o encontrar juegos en común para tu próxima sesión.
+              </p>
+
+              {/* Action cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-[672px]">
+                <button
+                  onClick={() => setActiveTab("analitica")}
+                  className="bg-[#0f172b] border border-[#1d293d] rounded-[16px] p-8 flex flex-col items-center gap-3 hover:border-[rgba(21,93,252,0.4)] hover:bg-[rgba(21,93,252,0.05)] transition-all group"
+                >
+                  <div className="w-14 h-14 rounded-[16px] bg-[rgba(28,57,142,0.3)] flex items-center justify-center group-hover:bg-[rgba(28,57,142,0.5)] transition-colors">
+                    <BarChart2 size={28} className="text-[#51a2ff]" />
+                  </div>
+                  <h3 className="text-white font-bold text-[20px]">
+                    Comparar Stats
+                  </h3>
+                  <p className="text-[#62748e] text-[14px] text-center leading-5">
+                    Analiza logros, tiempos de juego y bibliotecas
+                  </p>
+                </button>
+                <button
+                  onClick={() => setActiveTab("sesiones")}
+                  className="bg-[#0f172b] border border-[#1d293d] rounded-[16px] p-8 flex flex-col items-center gap-3 hover:border-[rgba(89,22,139,0.4)] hover:bg-[rgba(89,22,139,0.05)] transition-all group"
+                >
+                  <div className="w-14 h-14 rounded-[16px] bg-[rgba(89,22,139,0.3)] flex items-center justify-center group-hover:bg-[rgba(89,22,139,0.5)] transition-colors">
+                    <CalendarDays size={28} className="text-[#c27aff]" />
+                  </div>
+                  <h3 className="text-white font-bold text-[20px]">
+                    Planificar Sesión
+                  </h3>
+                  <p className="text-[#62748e] text-[14px] text-center leading-5">
+                    Encuentra juegos en común para jugar ahora
+                  </p>
+                </button>
               </div>
             </div>
           )}
 
-          {/* Offline Friends */}
-          {offlineFriends.length > 0 && (
-            <div>
-              <h2 className="text-sm font-bold text-slate-500 mb-3">
-                Offline — {offlineFriends.length}
+          {activeTab === "amigos" && selectedIds.size > 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 rounded-full bg-[rgba(21,93,252,0.15)] border border-[rgba(21,93,252,0.3)] flex items-center justify-center mb-4">
+                <Users size={32} className="text-[#51a2ff]" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">
+                {selectedIds.size} amigo{selectedIds.size !== 1 ? "s" : ""}{" "}
+                seleccionado{selectedIds.size !== 1 ? "s" : ""}
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {offlineFriends.map(friend => (
-                  <div
-                    key={friend.steamId}
-                    className="flex items-center gap-3 p-4 bg-slate-900/60 border border-slate-800/50 rounded-xl hover:border-slate-700 transition-all group opacity-70 hover:opacity-100"
-                  >
-                    <div className="relative shrink-0">
-                      <img src={friend.avatar} alt={friend.username} className="w-12 h-12 rounded-full object-cover ring-2 ring-slate-800 grayscale-[30%]" />
-                      <div className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-slate-900 bg-slate-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-slate-300 truncate text-sm">{friend.username}</h4>
-                      <p className="text-xs text-slate-600 mt-0.5">Offline</p>
-                    </div>
-                    <a
-                      href={`https://steamcommunity.com/profiles/${friend.steamId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-slate-600 hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <ExternalLink size={14} />
-                    </a>
-                  </div>
-                ))}
+              <p className="text-[#90a1b9] mb-6">
+                Elige una acción para continuar
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setActiveTab("analitica")}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[#155dfc] text-white rounded-[12px] text-sm font-semibold hover:bg-[#1a6aff] transition-colors"
+                >
+                  <BarChart2 size={16} /> Comparar Stats
+                </button>
+                <button
+                  onClick={() => setActiveTab("sesiones")}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-[rgba(89,22,139,0.3)] border border-[rgba(89,22,139,0.4)] text-[#c27aff] rounded-[12px] text-sm font-semibold hover:bg-[rgba(89,22,139,0.5)] transition-colors"
+                >
+                  <CalendarDays size={16} /> Planificar Sesión
+                </button>
               </div>
             </div>
           )}
+
+          {activeTab === "analitica" && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 rounded-full bg-[rgba(28,57,142,0.3)] flex items-center justify-center mb-4">
+                <BarChart2 size={32} className="text-[#51a2ff]" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">
+                Analítica comparativa
+              </h2>
+              <p className="text-[#90a1b9] max-w-md">
+                Selecciona amigos del panel izquierdo y compara logros, tiempos
+                de juego y bibliotecas.
+              </p>
+            </div>
+          )}
+
+          {activeTab === "sesiones" && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 rounded-full bg-[rgba(89,22,139,0.3)] flex items-center justify-center mb-4">
+                <CalendarDays size={32} className="text-[#c27aff]" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">
+                Planificar Sesión
+              </h2>
+              <p className="text-[#90a1b9] max-w-md">
+                Selecciona amigos del panel izquierdo para encontrar juegos en
+                común y organizar una sesión.
+              </p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
