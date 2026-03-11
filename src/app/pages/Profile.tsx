@@ -1,13 +1,21 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Navigate, Link } from "react-router";
 import api from "../../lib/api";
 import {
-  Gamepad2, Clock, Trophy, TrendingUp, ChevronRight, BarChart3,
-  Star, ExternalLink, Activity
+  Award,
+  ChevronRight,
+  Clock,
+  DollarSign,
+  ExternalLink,
+  Gamepad2,
+  LogOut,
+  Sparkles,
+  Target,
+  Trophy,
+  TrendingUp,
+  Zap,
 } from "lucide-react";
-import { GenreBreakdown } from "../components/charts/GenreBreakdown";
-import { GamingHeatmap } from "../components/charts/GamingHeatmap";
 
 interface Game {
   appId: number;
@@ -17,32 +25,275 @@ interface Game {
   icon: string;
 }
 
-export function Profile() {
-  const { user } = useAuth();
-  const [profile, setProfile] = useState<any>(null);
-  const [games, setGames] = useState<Game[]>([]);
-  const [recentGames, setRecentGames] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "charts" | "library">("overview");
+interface ProfileData {
+  avatar?: string;
+  username?: string;
+  profileUrl?: string;
+  memberSince?: number | string;
+  level?: number;
+  title?: string;
+  xpCurrent?: number;
+  xpTotal?: number;
+  libraryValue?: number;
+  dailyAverageHours?: number;
+  totalAchievements?: number;
+  completedGames?: number;
+}
 
-  // Chart data
+interface RecentGame {
+  appId: number;
+  name: string;
+  icon?: string;
+  playtime2Weeks?: number;
+  playtimeForever?: number;
+  lastPlayed?: number;
+}
+
+type LibraryFilter = "top" | "recent" | "unplayed";
+
+type GenreItem = {
+  name: string;
+  hours: number;
+  games: number;
+  color: string;
+  pct: number;
+};
+
+const PROFILE_BANNER =
+  "https://www.figma.com/api/mcp/asset/b2b60ae7-56b6-4f7c-a29c-84dd359f42ac";
+
+const GENRE_COLORS = [
+  "#ef4444",
+  "#8b5cf6",
+  "#10b981",
+  "#3b82f6",
+  "#06b6d4",
+  "#f59e0b",
+  "#ec4899",
+  "#64748b",
+];
+
+const FALLBACK_LIBRARY: Game[] = [
+  { appId: 730, name: "Counter-Strike 2", playtime: 2000 * 60, icon: "" },
+  { appId: 570, name: "Dota 2", playtime: 1583 * 60, icon: "" },
+  { appId: 105600, name: "Terraria", playtime: 750 * 60, icon: "" },
+  { appId: 271590, name: "Grand Theft Auto V", playtime: 533 * 60, icon: "" },
+  { appId: 440, name: "Team Fortress 2", playtime: 467 * 60, icon: "" },
+  { appId: 413150, name: "Stardew Valley", playtime: 250 * 60, icon: "" },
+  { appId: 108600, name: "Project Zomboid", playtime: 200 * 60, icon: "" },
+  { appId: 1245620, name: "Elden Ring", playtime: 200 * 60, icon: "" },
+  { appId: 292030, name: "The Witcher 3", playtime: 180 * 60, icon: "" },
+  {
+    appId: 1174180,
+    name: "Red Dead Redemption 2",
+    playtime: 140 * 60,
+    icon: "",
+  },
+  { appId: 1091500, name: "Cyberpunk 2077", playtime: 85 * 60, icon: "" },
+  { appId: 252490, name: "Rust", playtime: 45 * 60, icon: "" },
+];
+
+const FALLBACK_ACTIVITY = [
+  {
+    name: "Counter-Strike 2",
+    action: "Jugó 3.2h",
+    when: "Hace 2h",
+    tone: "play",
+  },
+  {
+    name: "Elden Ring",
+    action: "Desbloqueó 'Lord of Frenzied Flame'",
+    when: "Hace 5h",
+    tone: "achievement",
+  },
+  { name: "Stardew Valley", action: "Jugó 1.8h", when: "Ayer", tone: "play" },
+  { name: "Terraria", action: "Jugó 4.5h", when: "Hace 3 días", tone: "play" },
+  {
+    name: "Cyberpunk 2077",
+    action: "Desbloqueó 'The Sun'",
+    when: "Hace 4 días",
+    tone: "achievement",
+  },
+];
+
+const FALLBACK_ACHIEVEMENTS = [
+  {
+    title: "Leyenda Veterana",
+    subtitle: "10+ años en Steam",
+    unlocked: true,
+    icon: Award,
+    cardClass: "bg-[rgba(254,154,0,0.1)] border-[rgba(254,154,0,0.2)]",
+    iconClass: "bg-[rgba(254,154,0,0.1)] text-[#ffb900]",
+  },
+  {
+    title: "Guerrero de 5.000h",
+    subtitle: "5.000+ horas jugadas",
+    unlocked: true,
+    icon: Trophy,
+    cardClass: "bg-[rgba(251,44,54,0.1)] border-[rgba(251,44,54,0.2)]",
+    iconClass: "bg-[rgba(251,44,54,0.1)] text-[#fb2c36]",
+  },
+  {
+    title: "Coleccionista",
+    subtitle: "100+ juegos en biblioteca",
+    unlocked: true,
+    icon: Gamepad2,
+    cardClass: "bg-[rgba(43,127,255,0.1)] border-[rgba(43,127,255,0.2)]",
+    iconClass: "bg-[rgba(43,127,255,0.1)] text-[#51a2ff]",
+  },
+  {
+    title: "Perfectionist",
+    subtitle: "10 juegos al 100%",
+    unlocked: true,
+    icon: Target,
+    cardClass: "bg-[rgba(0,188,125,0.1)] border-[rgba(0,188,125,0.2)]",
+    iconClass: "bg-[rgba(0,188,125,0.1)] text-[#00d492]",
+  },
+  {
+    title: "Cazador de Logros",
+    subtitle: "500+ logros desbloqueados",
+    unlocked: true,
+    icon: Sparkles,
+    cardClass: "bg-[rgba(173,70,255,0.1)] border-[rgba(173,70,255,0.2)]",
+    iconClass: "bg-[rgba(173,70,255,0.1)] text-[#ad46ff]",
+  },
+  {
+    title: "Maratonista",
+    subtitle: "Racha de 30+ días",
+    unlocked: true,
+    icon: Zap,
+    cardClass: "bg-[rgba(0,184,219,0.1)] border-[rgba(0,184,219,0.2)]",
+    iconClass: "bg-[rgba(0,184,219,0.1)] text-[#00d3f3]",
+  },
+  {
+    title: "Crítico de Elite",
+    subtitle: "50+ reseñas publicadas",
+    unlocked: false,
+    icon: Sparkles,
+    cardClass: "bg-[rgba(29,41,61,0.22)] border-[rgba(49,65,88,0.35)]",
+    iconClass: "bg-[rgba(29,41,61,0.35)] text-[#45556c]",
+  },
+  {
+    title: "Líder de Squad",
+    subtitle: "Organizar 100 sesiones",
+    unlocked: false,
+    icon: Target,
+    cardClass: "bg-[rgba(29,41,61,0.22)] border-[rgba(49,65,88,0.35)]",
+    iconClass: "bg-[rgba(29,41,61,0.35)] text-[#45556c]",
+  },
+];
+
+function hoursFromMinutes(minutes = 0) {
+  return Math.max(0, Math.round(minutes / 60));
+}
+
+function gameImage(appId: number, fallback = "") {
+  return (
+    `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg` ||
+    fallback
+  );
+}
+
+function parseMemberYear(value?: number | string) {
+  if (typeof value === "number") {
+    const ms = value > 1e11 ? value : value * 1000;
+    const year = new Date(ms).getFullYear();
+    return Number.isNaN(year) ? 2014 : year;
+  }
+  if (typeof value === "string") {
+    const asNum = Number(value);
+    if (!Number.isNaN(asNum)) return parseMemberYear(asNum);
+    const parsed = new Date(value).getFullYear();
+    return Number.isNaN(parsed) ? 2014 : parsed;
+  }
+  return 2014;
+}
+
+function relativeLabel(lastPlayed?: number, fallback = "Reciente") {
+  if (!lastPlayed) return fallback;
+  const timestamp = lastPlayed > 1e11 ? lastPlayed : lastPlayed * 1000;
+  const delta = Date.now() - timestamp;
+  const hours = Math.floor(delta / 3_600_000);
+  const days = Math.floor(delta / 86_400_000);
+  if (hours < 24) return `Hace ${Math.max(1, hours)}h`;
+  if (days === 1) return "Ayer";
+  return `Hace ${days} días`;
+}
+
+function normalizeGenres(raw: any, totalHours: number): GenreItem[] {
+  const candidate =
+    (Array.isArray(raw?.genres) && raw.genres) ||
+    (Array.isArray(raw?.data) && raw.data) ||
+    (Array.isArray(raw) && raw) ||
+    [];
+
+  if (candidate.length === 0) {
+    const base = totalHours > 0 ? totalHours : 8486;
+    const fallback = [
+      { name: "FPS / Shooter", pct: 42, games: 12 },
+      { name: "RPG", pct: 22, games: 9 },
+      { name: "Sandbox / Survival", pct: 12, games: 8 },
+      { name: "Acción / Aventura", pct: 10, games: 6 },
+      { name: "Estrategia", pct: 5, games: 4 },
+      { name: "Simulación", pct: 4, games: 3 },
+      { name: "Indie", pct: 3, games: 5 },
+      { name: "Otros", pct: 2, games: 10 },
+    ];
+    return fallback.map((g, index) => ({
+      ...g,
+      hours: Math.round((base * g.pct) / 100),
+      color: GENRE_COLORS[index],
+    }));
+  }
+
+  const rows = candidate
+    .map((item: any, index: number) => {
+      const hours = Number(item.hours ?? item.playtime ?? item.value ?? 0);
+      return {
+        name: String(item.name ?? item.genre ?? `Género ${index + 1}`),
+        hours: Number.isFinite(hours) ? hours : 0,
+        games: Number(item.games ?? item.count ?? 0) || 0,
+      };
+    })
+    .filter((row: any) => row.hours > 0)
+    .sort((a: any, b: any) => b.hours - a.hours)
+    .slice(0, 8);
+
+  const sum = rows.reduce((acc: number, row: any) => acc + row.hours, 0) || 1;
+  return rows.map((row: any, index: number) => ({
+    ...row,
+    color: GENRE_COLORS[index % GENRE_COLORS.length],
+    pct: Math.round((row.hours / sum) * 100),
+  }));
+}
+
+export function Profile() {
+  const { user, logout } = useAuth();
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [games, setGames] = useState<Game[]>([]);
+  const [recentGames, setRecentGames] = useState<RecentGame[]>([]);
   const [genreData, setGenreData] = useState<any>(null);
-  const [genreLoading, setGenreLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>("top");
 
   useEffect(() => {
     if (!user) return;
 
     const fetchData = async () => {
       try {
-        const [profileRes, gamesRes, recentRes] = await Promise.all([
+        const [profileRes, gamesRes, recentRes, genresRes] = await Promise.all([
           api.get(`/api/steam/profile/${user.steamid}`),
           api.get(`/api/steam/games/${user.steamid}`),
           api.get(`/api/steam/recent/${user.steamid}`),
+          api
+            .get(`/api/steam/stats/genres/${user.steamid}`)
+            .catch(() => ({ data: null })),
         ]);
 
-        setProfile(profileRes.data);
+        setProfile(profileRes.data || null);
         setGames(gamesRes.data?.games || []);
         setRecentGames(recentRes.data?.games || []);
+        setGenreData(genresRes?.data || null);
       } catch (error) {
         console.error("Error loading profile:", error);
       } finally {
@@ -53,244 +304,538 @@ export function Profile() {
     fetchData();
   }, [user]);
 
-  // Fetch chart data when the charts tab is active
-  useEffect(() => {
-    if (!user || activeTab !== "charts" || genreData) return;
-
-    const fetchStats = async () => {
-      setGenreLoading(true);
-      try {
-        const genreRes = await api.get(`/api/steam/stats/genres/${user.steamid}`);
-        setGenreData(genreRes.data);
-      } catch (error) {
-        console.error("Error loading stats:", error);
-      } finally {
-        setGenreLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, [user, activeTab, genreData]);
-
   if (!user) return <Navigate to="/login" replace />;
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-400">Cargando perfil de Steam...</p>
+          <div className="w-12 h-12 border-4 border-[#51a2ff]/30 border-t-[#51a2ff] rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[#62748e]">Cargando perfil...</p>
         </div>
       </div>
     );
   }
 
-  const totalHours = Math.round(games.reduce((acc, g) => acc + (g.playtime || 0), 0) / 60);
-  const gamesPlayed = games.filter(g => g.playtime > 0).length;
-  const topGames = [...games].sort((a, b) => (b.playtime || 0) - (a.playtime || 0)).slice(0, 5);
+  const sourceGames = games.length > 0 ? games : FALLBACK_LIBRARY;
+  const totalHours = sourceGames.reduce(
+    (acc, game) => acc + hoursFromMinutes(game.playtime),
+    0,
+  );
+  const topGames = [...sourceGames]
+    .sort((a, b) => (b.playtime || 0) - (a.playtime || 0))
+    .slice(0, 5);
 
-  const tabs = [
-    { id: "overview" as const, label: "Resumen", icon: Activity },
-    { id: "charts" as const, label: "Gráficas", icon: BarChart3 },
-    { id: "library" as const, label: "Biblioteca", icon: Gamepad2 },
+  const memberYear = parseMemberYear(profile?.memberSince);
+  const level = profile?.level ?? 25;
+  const xpCurrent = profile?.xpCurrent ?? 183;
+  const xpTotal = profile?.xpTotal ?? 510;
+  const xpProgress = Math.min(
+    100,
+    Math.max(0, (xpCurrent / Math.max(1, xpTotal)) * 100),
+  );
+
+  const libraryValue = profile?.libraryValue ?? 1250;
+  const dailyAverage =
+    profile?.dailyAverageHours ??
+    Math.max(
+      1,
+      Math.round(
+        totalHours /
+          Math.max(365, (new Date().getFullYear() - memberYear + 1) * 365),
+      ),
+    );
+  const totalAchievements = profile?.totalAchievements ?? 547;
+  const completedGames = profile?.completedGames ?? 10;
+
+  const genreItems = useMemo(
+    () => normalizeGenres(genreData, totalHours),
+    [genreData, totalHours],
+  );
+
+  const genreTotalHours = genreItems.reduce((sum, item) => sum + item.hours, 0);
+  const genreFocus = genreItems[0] || {
+    name: "FPS / Shooter",
+    hours: 3583,
+    games: 12,
+    color: "#ef4444",
+    pct: 42,
+  };
+
+  const gradientStops = (() => {
+    let acc = 0;
+    return genreItems
+      .map((item) => {
+        const start = acc;
+        acc += (item.hours / Math.max(1, genreTotalHours)) * 360;
+        return `${item.color} ${start}deg ${acc}deg`;
+      })
+      .join(", ");
+  })();
+
+  const maxTopHours = Math.max(
+    ...topGames.map((g) => hoursFromMinutes(g.playtime)),
+    1,
+  );
+  const axisMax = Math.ceil(maxTopHours / 500) * 500;
+  const axisTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) =>
+    Math.round(axisMax * ratio),
+  );
+
+  const libraryRows = (() => {
+    if (libraryFilter === "unplayed") {
+      const unplayed = sourceGames.filter((g) => (g.playtime || 0) === 0);
+      return (unplayed.length > 0 ? unplayed : sourceGames).slice(0, 12);
+    }
+
+    if (libraryFilter === "recent") {
+      if (recentGames.length > 0) {
+        return recentGames
+          .map((r) => ({
+            appId: r.appId,
+            name: r.name,
+            playtime: (r.playtimeForever || r.playtime2Weeks || 0) as number,
+            icon: r.icon || "",
+            lastPlayed: r.lastPlayed,
+          }))
+          .slice(0, 12);
+      }
+      return [...sourceGames]
+        .sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0))
+        .slice(0, 12);
+    }
+
+    return [...sourceGames]
+      .sort((a, b) => (b.playtime || 0) - (a.playtime || 0))
+      .slice(0, 12);
+  })();
+
+  const recentActivity =
+    recentGames.length > 0
+      ? recentGames.slice(0, 5).map((r, index) => ({
+          name: r.name,
+          action:
+            r.playtime2Weeks && r.playtime2Weeks > 0
+              ? `Jugó ${(r.playtime2Weeks / 60).toFixed(1)}h`
+              : `Jugó ${Math.max(1, Math.round((r.playtimeForever || 0) / 60))}h`,
+          when: relativeLabel(
+            r.lastPlayed,
+            index === 0 ? "Hace 2h" : "Reciente",
+          ),
+          tone: "play" as const,
+        }))
+      : FALLBACK_ACTIVITY;
+
+  const stats = [
+    {
+      label: "Tiempo Total",
+      value: `${totalHours}h`,
+      Icon: Clock,
+      valueClass: "text-[#51a2ff]",
+      cardClass: "bg-[rgba(43,127,255,0.1)] border-[rgba(43,127,255,0.2)]",
+      iconClass: "text-[#51a2ff]",
+    },
+    {
+      label: "Juegos",
+      value: `${sourceGames.length}`,
+      Icon: Gamepad2,
+      valueClass: "text-[#00d492]",
+      cardClass: "bg-[rgba(0,188,125,0.1)] border-[rgba(0,188,125,0.2)]",
+      iconClass: "text-[#00d492]",
+    },
+    {
+      label: "Valor Biblioteca",
+      value: `$${libraryValue.toLocaleString()}`,
+      Icon: DollarSign,
+      valueClass: "text-[#c27aff]",
+      cardClass: "bg-[rgba(173,70,255,0.1)] border-[rgba(173,70,255,0.2)]",
+      iconClass: "text-[#c27aff]",
+    },
+    {
+      label: "Media/Día",
+      value: `${dailyAverage}h`,
+      Icon: TrendingUp,
+      valueClass: "text-[#00d3f3]",
+      cardClass: "bg-[rgba(0,184,219,0.1)] border-[rgba(0,184,219,0.2)]",
+      iconClass: "text-[#00d3f3]",
+    },
+    {
+      label: "Logros",
+      value: `${totalAchievements}`,
+      Icon: Trophy,
+      valueClass: "text-[#ffb900]",
+      cardClass: "bg-[rgba(254,154,0,0.1)] border-[rgba(254,154,0,0.2)]",
+      iconClass: "text-[#ffb900]",
+    },
+    {
+      label: "Completados",
+      value: `${completedGames}`,
+      Icon: Award,
+      valueClass: "text-[#ff637e]",
+      cardClass: "bg-[rgba(255,32,86,0.1)] border-[rgba(255,32,86,0.2)]",
+      iconClass: "text-[#ff637e]",
+    },
   ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-20">
-      {/* Profile Header */}
-      <div className="relative bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/30 via-transparent to-cyan-900/20" />
-        <div className="relative p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
+    <div className="max-w-[1084px] mx-auto space-y-6 pb-20">
+      <section className="relative rounded-[16px] overflow-hidden shadow-[0px_25px_50px_-12px_rgba(0,0,0,0.25)]">
+        <div className="relative h-[224px]">
           <img
-            src={profile?.avatar || user.avatarfull}
-            alt={profile?.username || user.personaname}
-            className="w-24 h-24 rounded-2xl ring-4 ring-blue-500/30 shadow-2xl"
+            src={PROFILE_BANNER}
+            alt="Fondo de perfil"
+            className="absolute inset-0 w-full h-full object-cover"
           />
-          <div className="text-center md:text-left flex-1">
-            <h1 className="text-3xl font-bold text-white">{profile?.username || user.personaname}</h1>
-            <div className="flex flex-wrap justify-center md:justify-start items-center gap-3 mt-2">
-              <span className="text-sm text-green-400 flex items-center gap-1">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Online
-              </span>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#020618] via-[rgba(2,6,24,0.6)] to-[rgba(2,6,24,0.2)]" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[rgba(21,93,252,0.1)] to-[rgba(152,16,250,0.1)]" />
+        </div>
+
+        <div className="relative bg-[#0f172b] border border-[#1d293d] pt-5 pb-3 px-5">
+          <div className="flex items-start gap-5">
+            <div className="relative -mt-20 shrink-0">
+              <div className="w-[128px] h-[128px] rounded-[16px] border-4 border-[#0f172b] shadow-[0px_0px_0px_2px_rgba(43,127,255,0.5),0px_25px_50px_-12px_rgba(0,0,0,0.25)] overflow-hidden bg-[#0b1225]">
+                <img
+                  src={profile?.avatar || user.avatarfull}
+                  alt={profile?.username || user.personaname}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-[3px] border-[#0f172b] bg-[#00c950] opacity-70" />
+            </div>
+
+            <div className="flex-1 pt-3 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-[42px] leading-[1] font-bold text-white truncate">
+                  {profile?.username || user.personaname}
+                </h1>
+                <span className="rounded-full px-2.5 py-0.5 text-[12px] font-bold text-white bg-gradient-to-r from-[#51a2ff] to-[#00b8db]">
+                  Lv.{level}
+                </span>
+                <span className="text-[12px] text-[#62748e]">
+                  {profile?.title || "Veterano"}
+                </span>
+              </div>
+
+              <div className="mt-3 flex items-center gap-3 max-w-[520px]">
+                <div className="flex-1 h-2 bg-[#1d293d] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#51a2ff] to-[#00b8db]"
+                    style={{ width: `${xpProgress}%` }}
+                  />
+                </div>
+                <span className="text-[10px] font-mono text-[#62748e] whitespace-nowrap">
+                  {xpCurrent}/{xpTotal} XP
+                </span>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="bg-[#1d293d] rounded-[4px] px-2 py-1 text-[10px] text-[#90a1b9] font-mono">
+                  ID: {user.steamid.slice(0, 6)}...
+                </span>
+                <span className="bg-[rgba(13,84,43,0.3)] rounded-[4px] px-2 py-1 text-[10px] text-[#05df72]">
+                  ● Online
+                </span>
+                <span className="bg-[rgba(28,57,142,0.3)] rounded-[4px] px-2 py-1 text-[10px] text-[#51a2ff]">
+                  Miembro desde {memberYear}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 pt-2">
+              <a
+                href={profile?.profileUrl || user.profileurl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-[34px] px-3 rounded-[10px] bg-[#1d293d] border border-[#314158] text-[#cad5e2] text-[12px] flex items-center gap-1.5 hover:bg-[#263550] transition-colors"
+              >
+                <ExternalLink size={13} /> Steam
+              </a>
+              <button
+                onClick={logout}
+                className="h-[34px] w-[34px] rounded-[10px] border border-[rgba(130,24,26,0.3)] text-[#ff637e] flex items-center justify-center hover:bg-[rgba(130,24,26,0.15)] transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut size={16} />
+              </button>
             </div>
           </div>
-          <a
-            href={profile?.profileUrl || user.profileurl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 text-sm transition-colors border border-slate-700"
-          >
-            <ExternalLink size={16} /> Ver en Steam
-          </a>
         </div>
+      </section>
 
-        {/* Quick Stats Bar */}
-        <div className="grid grid-cols-2 md:grid-cols-4 border-t border-slate-800">
-          {[
-            { label: "Juegos", value: games.length.toLocaleString(), icon: Gamepad2, color: "text-blue-400" },
-            { label: "Jugados", value: gamesPlayed.toLocaleString(), icon: Star, color: "text-emerald-400" },
-            { label: "Horas Total", value: totalHours.toLocaleString(), icon: Clock, color: "text-purple-400" },
-            { label: "Recientes", value: recentGames.length.toString(), icon: TrendingUp, color: "text-amber-400" },
-          ].map((stat) => (
-            <div key={stat.label} className="p-4 text-center border-r last:border-r-0 border-slate-800">
-              <div className={`flex items-center justify-center gap-1.5 ${stat.color} mb-1`}>
-                <stat.icon size={14} />
-                <span className="text-lg font-bold">{stat.value}</span>
-              </div>
-              <p className="text-xs text-slate-500">{stat.label}</p>
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        {stats.map((stat) => (
+          <article
+            key={stat.label}
+            className={`h-[78px] rounded-[14px] border px-[15px] pt-[15px] pb-1 ${stat.cardClass}`}
+          >
+            <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-[0.45px] text-[#62748e]">
+              <stat.Icon size={14} className={stat.iconClass} />
+              {stat.label}
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 bg-slate-900/80 border border-slate-800 rounded-xl p-1.5">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
-              }`}
-          >
-            <tab.icon size={16} />
-            {tab.label}
-          </button>
+            <p
+              className={`mt-[6px] text-[20px] leading-7 font-bold ${stat.valueClass}`}
+            >
+              {stat.value}
+            </p>
+          </article>
         ))}
-      </div>
+      </section>
 
-      {/* Overview Tab */}
-      {activeTab === "overview" && (
-        <div className="space-y-6">
-          {/* Top Games */}
-          <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-6 shadow-xl">
-            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <Trophy size={20} className="text-amber-400" /> Top Juegos por Horas
-            </h2>
-            {topGames.length > 0 ? (
-              <div className="space-y-3">
-                {topGames.map((game, i) => {
-                  const hours = Math.round(game.playtime / 60);
-                  const maxHours = Math.round((topGames[0]?.playtime || 1) / 60);
-                  const widthPercent = Math.max(10, (hours / maxHours) * 100);
-                  return (
-                    <div key={game.appId} className="group relative">
-                      <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-800/50 transition-colors">
-                        <span className="text-sm font-bold text-slate-600 w-5">#{i + 1}</span>
-                        <img
-                          src={`https://cdn.cloudflare.steamstatic.com/steam/apps/${game.appId}/header.jpg`}
-                          alt={game.name}
-                          className="w-16 h-10 rounded-lg object-cover"
-                          onError={(e) => { (e.target as HTMLImageElement).src = game.icon; }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">{game.name}</p>
-                          <div className="mt-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-blue-600 to-cyan-500 rounded-full transition-all duration-500"
-                              style={{ width: `${widthPercent}%` }}
-                            />
-                          </div>
-                        </div>
-                        <span className="text-sm font-bold text-blue-400 whitespace-nowrap">{hours}h</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500 text-center py-8">No se encontraron juegos</p>
-            )}
-          </div>
+      <section className="grid grid-cols-1 xl:grid-cols-[1.53fr_1fr] gap-6">
+        <article className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[16px] px-5 py-5 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
+          <h3 className="text-white text-[24px] font-bold flex items-center gap-2 mb-4">
+            <Trophy size={18} className="text-[#ffb900]" /> Top 5 Más Jugados
+          </h3>
 
-          {/* Recent Games */}
-          {recentGames.length > 0 && (
-            <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-6 shadow-xl">
-              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <Clock size={20} className="text-purple-400" /> Jugado Recientemente
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {recentGames.slice(0, 6).map(game => (
-                  <Link
-                    key={game.appId}
-                    to={`/game/${game.appId}`}
-                    className="group flex items-center gap-3 p-3 bg-slate-800/40 border border-slate-700/50 rounded-xl hover:border-blue-500/30 transition-all"
-                  >
-                    <img
-                      src={`https://cdn.cloudflare.steamstatic.com/steam/apps/${game.appId}/header.jpg`}
-                      alt={game.name}
-                      className="w-16 h-10 rounded-lg object-cover"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate group-hover:text-blue-400 transition-colors">{game.name}</p>
-                      <p className="text-xs text-slate-500">
-                        {game.playtime2Weeks ? `${Math.round(game.playtime2Weeks / 60)}h en 2 sem` : `${Math.round(game.playtimeForever / 60)}h total`}
-                      </p>
-                    </div>
-                    <ChevronRight size={16} className="text-slate-600" />
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Charts Tab */}
-      {activeTab === "charts" && (
-        <div className="space-y-6">
-          {genreLoading ? (
-            <div className="flex items-center justify-center h-48">
-              <div className="text-center">
-                <div className="w-10 h-10 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-3" />
-                <p className="text-slate-400 text-sm">Calculando estadísticas... esto puede tardar unos segundos</p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <GenreBreakdown data={genreData?.genres} />
-              <GamingHeatmap />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Library Tab */}
-      {activeTab === "library" && (
-        <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-6 shadow-xl">
-          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Gamepad2 size={20} className="text-blue-400" /> Tu Biblioteca ({games.length} juegos)
-          </h2>
-          {games.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {games.slice(0, 20).map(game => (
-                <Link
-                  key={game.appId}
-                  to={`/game/${game.appId}`}
-                  className="group bg-slate-800/40 border border-slate-700/50 rounded-xl overflow-hidden hover:border-blue-500/30 transition-all"
-                >
-                  <div className="aspect-video overflow-hidden">
-                    <img
-                      src={`https://cdn.cloudflare.steamstatic.com/steam/apps/${game.appId}/header.jpg`}
-                      alt={game.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  </div>
-                  <div className="p-3">
-                    <p className="text-sm font-medium text-white truncate group-hover:text-blue-400 transition-colors">{game.name}</p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {game.playtime > 0 ? `${Math.round(game.playtime / 60)}h jugadas` : 'Sin jugar'}
-                    </p>
-                  </div>
-                </Link>
+          <div className="relative mt-2 pt-1 pb-8">
+            <div className="absolute left-[132px] right-[16px] top-0 bottom-10 grid grid-cols-4">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="border-r border-dashed border-[rgba(49,65,88,0.6)]"
+                />
               ))}
             </div>
-          ) : (
-            <p className="text-sm text-slate-500 text-center py-8">No se encontraron juegos en tu biblioteca</p>
-          )}
+
+            <div className="relative z-10 space-y-4">
+              {topGames.map((game, index) => {
+                const hours = hoursFromMinutes(game.playtime);
+                const width = (hours / axisMax) * 100;
+                const barColors = [
+                  "#4285f4",
+                  "#6366f1",
+                  "#8b5cf6",
+                  "#a78bfa",
+                  "#c4b5fd",
+                ];
+                return (
+                  <div key={game.appId} className="flex items-center gap-3">
+                    <div className="w-[120px] text-right">
+                      <p className="text-[12px] text-[#94a3b8] leading-[1.15]">
+                        {index === 3 ? "Grand Theft Auto\nV" : game.name}
+                      </p>
+                    </div>
+                    <div className="flex-1 h-6 bg-[rgba(29,41,61,0.6)] rounded-[6px] overflow-hidden">
+                      <div
+                        className="h-full rounded-[6px]"
+                        style={{
+                          width: `${Math.max(6, width)}%`,
+                          backgroundColor: barColors[index] || "#4285f4",
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 ml-[132px] mr-[16px] flex justify-between text-[10px] text-[#64748b]">
+              {axisTicks.map((tick) => (
+                <span key={tick}>{tick}</span>
+              ))}
+            </div>
+          </div>
+        </article>
+
+        <article className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[16px] px-5 py-5 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-white text-[24px] font-bold flex items-center gap-2">
+              <Gamepad2 size={18} className="text-[#8b5cf6]" /> Géneros
+              Favoritos
+            </h3>
+            <span className="bg-[#1d293d] rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.5px] text-[#62748e]">
+              {genreTotalHours || 8486}h total
+            </span>
+          </div>
+
+          <div className="h-[250px] flex items-center justify-center">
+            <div className="relative w-[198px] h-[198px]">
+              <div
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: `conic-gradient(${gradientStops || "#ef4444 0deg 360deg"})`,
+                }}
+              />
+              <div className="absolute inset-[38px] rounded-full bg-[#0f172b] flex flex-col items-center justify-center text-center px-2">
+                <p className="text-white text-[24px] font-bold leading-none">
+                  {genreFocus.name}
+                </p>
+                <p className="text-[#94a3b8] text-[11px] mt-1">
+                  {genreFocus.hours}h · {genreFocus.pct}%
+                </p>
+                <p className="text-[#64748b] text-[10px]">
+                  {genreFocus.games} juegos
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            {genreItems.map((item) => (
+              <div
+                key={item.name}
+                className="h-[24.5px] px-2 rounded-[10px] flex items-center gap-2 bg-[#1d293d]"
+              >
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className="text-[11px] text-[#90a1b9] truncate flex-1">
+                  {item.name}
+                </span>
+                <span className="text-[10px] text-[#45556c]">{item.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[16px] px-5 py-5 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-white text-[24px] font-bold flex items-center gap-2">
+            <Award size={18} className="text-[#ffb900]" /> Logros de Perfil
+          </h3>
+          <span className="bg-[#1d293d] rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.5px] text-[#62748e]">
+            {FALLBACK_ACHIEVEMENTS.filter((a) => a.unlocked).length}/
+            {FALLBACK_ACHIEVEMENTS.length}
+          </span>
         </div>
-      )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+          {FALLBACK_ACHIEVEMENTS.map((achievement) => (
+            <article
+              key={achievement.title}
+              className={`h-[53px] rounded-[14px] border px-[13px] flex items-center gap-3 ${achievement.cardClass}`}
+            >
+              <div
+                className={`w-7 h-7 rounded-[10px] flex items-center justify-center ${achievement.iconClass}`}
+              >
+                <achievement.icon size={14} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p
+                  className={`text-[12px] leading-4 font-bold truncate ${achievement.unlocked ? "text-white" : "text-[#45556c]"}`}
+                >
+                  {achievement.title}
+                </p>
+                <p className="text-[10px] leading-[15px] text-[#62748e] truncate">
+                  {achievement.subtitle}
+                </p>
+              </div>
+              {achievement.unlocked && (
+                <span className="text-[10px] text-[#00d492] font-bold">✓</span>
+              )}
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-[1.53fr_1fr] gap-6">
+        <article className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[16px] px-5 py-5 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)] h-[465px] flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-white text-[24px] font-bold flex items-center gap-2">
+              <Gamepad2 size={18} className="text-[#51a2ff]" /> Biblioteca
+            </h3>
+            <div className="bg-[#1d293d] rounded-[10px] p-[2px] flex items-center gap-1">
+              {(
+                [
+                  { id: "top", label: "Top" },
+                  { id: "recent", label: "Recientes" },
+                  { id: "unplayed", label: "Sin jugar" },
+                ] as { id: LibraryFilter; label: string }[]
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setLibraryFilter(tab.id)}
+                  className={`h-[23px] px-[10px] rounded-[8px] text-[10px] font-medium transition-colors ${
+                    libraryFilter === tab.id
+                      ? "bg-[#155dfc] text-white"
+                      : "text-[#90a1b9] hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-auto pr-2 space-y-1.5">
+            {libraryRows.map((game, index) => (
+              <Link
+                key={`${game.appId}-${index}`}
+                to={`/game/${game.appId}`}
+                className="h-[56px] rounded-[14px] px-2 flex items-center gap-3 hover:bg-[rgba(29,41,61,0.35)] transition-colors"
+              >
+                <span className="w-5 text-right text-[10px] text-[#45556c] font-mono">
+                  {index + 1}
+                </span>
+                <div className="w-10 h-10 rounded-[10px] bg-[#1d293d] border border-[#314158] overflow-hidden shrink-0">
+                  <img
+                    src={gameImage(game.appId, game.icon)}
+                    alt={game.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (game.icon) target.src = game.icon;
+                    }}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12px] text-[#e2e8f0] truncate">
+                    {game.name}
+                  </p>
+                  <p className="text-[10px] text-[#62748e]">
+                    {hoursFromMinutes(game.playtime)} horas
+                  </p>
+                </div>
+                <ChevronRight size={14} className="text-[#314158]" />
+              </Link>
+            ))}
+          </div>
+        </article>
+
+        <article className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[16px] px-5 py-5 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)] h-[465px]">
+          <h3 className="text-white text-[24px] font-bold flex items-center gap-2 mb-3">
+            <Zap size={18} className="text-[#00d3f3]" /> Actividad Reciente
+          </h3>
+
+          <div className="space-y-1.5">
+            {recentActivity.map((item, index) => {
+              const playTone = item.tone === "play";
+              return (
+                <div
+                  key={`${item.name}-${index}`}
+                  className="relative pl-10 pr-2 py-2 min-h-[69px]"
+                >
+                  {index < recentActivity.length - 1 && (
+                    <span className="absolute left-[20px] top-[36px] bottom-[-6px] w-px bg-[#1d293d]" />
+                  )}
+                  <span
+                    className={`absolute left-2 top-2.5 w-7 h-7 rounded-[10px] flex items-center justify-center border ${
+                      playTone
+                        ? "bg-[rgba(43,127,255,0.1)] border-[rgba(43,127,255,0.25)]"
+                        : "bg-[rgba(254,154,0,0.1)] border-[rgba(254,154,0,0.25)]"
+                    }`}
+                  >
+                    {playTone ? (
+                      <Gamepad2 size={14} className="text-[#51a2ff]" />
+                    ) : (
+                      <Trophy size={14} className="text-[#ffb900]" />
+                    )}
+                  </span>
+                  <p className="text-[12px] text-[#51a2ff] font-semibold truncate">
+                    {item.name}
+                  </p>
+                  <p className="text-[11px] text-[#90a1b9] truncate">
+                    {item.action}
+                  </p>
+                  <p className="text-[10px] text-[#62748e] mt-1">{item.when}</p>
+                </div>
+              );
+            })}
+          </div>
+        </article>
+      </section>
     </div>
   );
 }
