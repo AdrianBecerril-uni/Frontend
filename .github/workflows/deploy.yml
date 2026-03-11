@@ -14,8 +14,23 @@ jobs:
   deploy-preview:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    env:
+      NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+      NPM_CONFIG_FETCH_RETRIES: "5"
+      NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
+      NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
+      NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
+      NPM_CONFIG_NETWORK_TIMEOUT: "120000"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install Vercel CLI
         run: npm install -g vercel
@@ -24,7 +39,17 @@ jobs:
         run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build Project
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          for i in 1 2 3; do
+            echo "Build attempt $i"
+            vercel build --token=${{ secrets.VERCEL_TOKEN }} && break
+            if [ "$i" -eq 3 ]; then
+              echo "Vercel build failed after 3 attempts"
+              exit 1
+            fi
+            echo "Retrying in 20s due to transient npm/network failure..."
+            sleep 20
+          done
 
       - name: Deploy to Vercel (Preview)
         run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
@@ -32,8 +57,23 @@ jobs:
   deploy-production:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    env:
+      NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+      NPM_CONFIG_FETCH_RETRIES: "5"
+      NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
+      NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
+      NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
+      NPM_CONFIG_NETWORK_TIMEOUT: "120000"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install Vercel CLI
         run: npm install -g vercel
@@ -42,7 +82,17 @@ jobs:
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build Project
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          for i in 1 2 3; do
+            echo "Build attempt $i"
+            vercel build --prod --token=${{ secrets.VERCEL_TOKEN }} && break
+            if [ "$i" -eq 3 ]; then
+              echo "Vercel build failed after 3 attempts"
+              exit 1
+            fi
+            echo "Retrying in 20s due to transient npm/network failure..."
+            sleep 20
+          done
 
       - name: Deploy to Vercel (Production)
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
