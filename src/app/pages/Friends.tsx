@@ -15,6 +15,10 @@ import {
   ShoppingBag,
   DollarSign,
   Star,
+  Medal,
+  Sparkles,
+  Gem,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { Navigate } from "react-router";
@@ -721,7 +725,295 @@ function AnalyticsPanel({
         </>
       )}
 
-      {(subTab === "logros" || subTab === "radar") && (
+      {subTab === "logros" &&
+        (() => {
+          const peopleWithLogros = people.map((p, i) => ({
+            ...p,
+            ...(MOCK_LOGROS[i] ?? MOCK_LOGROS[MOCK_LOGROS.length - 1]),
+          }));
+          const completionSorted = [...peopleWithLogros].sort(
+            (a, b) => b.completionPct - a.completionPct,
+          );
+          const bestCompletion = completionSorted[0].name;
+          const hallOfFame = [...peopleWithLogros].sort(
+            (a, b) => b.perfectGames - a.perfectGames,
+          );
+
+          const medalBadge = (rank: number, color: string) => {
+            if (rank === 0)
+              return (
+                <div
+                  className="w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0 shadow-[0px_4px_6px_0px_rgba(254,154,0,0.2)]"
+                  style={{
+                    background:
+                      "linear-gradient(135deg,#fe9a00 0%,#d08700 100%)",
+                  }}
+                >
+                  <span className="text-[18px]">👑</span>
+                </div>
+              );
+            if (rank === 1)
+              return (
+                <div
+                  className="w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0"
+                  style={{
+                    background:
+                      "linear-gradient(135deg,#cad5e2 0%,#90a1b9 100%)",
+                  }}
+                >
+                  <span className="font-black text-[18px] text-black">2</span>
+                </div>
+              );
+            if (rank === 2)
+              return (
+                <div
+                  className="w-10 h-10 rounded-[14px] flex items-center justify-center shrink-0"
+                  style={{
+                    background:
+                      "linear-gradient(135deg,#bb4d00 0%,#973c00 100%)",
+                  }}
+                >
+                  <span className="font-black text-[18px] text-white">3</span>
+                </div>
+              );
+            return (
+              <div className="w-10 h-10 rounded-[14px] bg-[#314158] flex items-center justify-center shrink-0">
+                <span className="font-black text-[18px] text-[#90a1b9]">
+                  {rank + 1}
+                </span>
+              </div>
+            );
+          };
+
+          return (
+            <>
+              {/* Banner El Sudor y los Logros */}
+              <div
+                className="flex items-center gap-4 px-6 py-5 rounded-[24px] border border-[rgba(254,154,0,0.2)]"
+                style={{
+                  background:
+                    "linear-gradient(90deg, rgba(123,51,6,0.3) 0%, rgba(115,62,10,0.2) 50%, rgba(126,42,12,0.3) 100%)",
+                }}
+              >
+                <div className="w-[52px] h-[52px] shrink-0 bg-[rgba(254,154,0,0.2)] rounded-[16px] flex items-center justify-center">
+                  <Trophy size={28} className="text-[#fe9a00]" />
+                </div>
+                <div>
+                  <h2 className="text-[24px] font-bold text-white">
+                    El Sudor y los Logros
+                  </h2>
+                  <p className="text-[#90a1b9] text-[14px]">
+                    El &quot;Tryhardismo&quot; — tener muchos juegos no
+                    significa ser bueno, ni terminarlos
+                  </p>
+                </div>
+              </div>
+
+              {/* Two-column: Tasa de Finalización + Salón de la Fama */}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {/* Tasa de Finalización */}
+                <div className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[24px] p-6 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
+                  <div className="flex items-start justify-between mb-6">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Medal size={20} className="text-[#62748e]" />
+                        <h3 className="text-white font-bold text-[18px]">
+                          Tasa de Finalización
+                        </h3>
+                      </div>
+                      <p className="text-[#62748e] text-[12px] leading-relaxed max-w-[220px]">
+                        % medio de logros desbloqueados por juego empezado
+                      </p>
+                    </div>
+                    <div className="px-3 py-1 bg-[rgba(254,154,0,0.1)] border border-[rgba(254,154,0,0.2)] rounded-full flex items-center gap-1.5 shrink-0">
+                      <Crown size={12} className="text-[#ffb900]" />
+                      <span className="text-[#ffb900] text-[10px] font-bold">
+                        {bestCompletion}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    {completionSorted.map((p) => (
+                      <div key={p.name} className="flex flex-col items-center">
+                        <div
+                          className="relative"
+                          style={{ width: 100, height: 100 }}
+                        >
+                          <DonutChart
+                            pct={p.completionPct}
+                            color={p.color}
+                            size={100}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span
+                              className="font-black text-[20px]"
+                              style={{ color: p.color }}
+                            >
+                              {p.completionPct}%
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-white text-[12px] font-bold mt-1 text-center truncate w-full">
+                          {p.name}
+                        </p>
+                        <p className="text-[#62748e] text-[10px] text-center">
+                          {p.totalAchievements} logros
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Salón de la Fama */}
+                <div className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[24px] p-6 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Sparkles size={20} className="text-[#62748e]" />
+                    <h3 className="text-white font-bold text-[18px]">
+                      Salón de la Fama
+                    </h3>
+                  </div>
+                  <p className="text-[#62748e] text-[12px] mb-5">
+                    Juegos completados al 100% de logros
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    {hallOfFame.map((p, idx) => {
+                      const perfectPct = (
+                        (p.perfectGames / p.totalGames) *
+                        100
+                      ).toFixed(1);
+                      return (
+                        <div
+                          key={p.name}
+                          className="bg-[rgba(29,41,61,0.4)] border border-[rgba(49,65,88,0.3)] rounded-[16px] px-4 py-3"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3">
+                              {medalBadge(idx, p.color)}
+                              <div>
+                                <p className="text-white font-bold text-[14px]">
+                                  {p.name}
+                                </p>
+                                <p className="text-[#62748e] text-[10px]">
+                                  {p.totalAchievements} logros totales
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="flex items-center gap-1 justify-end">
+                                <Star
+                                  size={14}
+                                  className="text-[#f59e0b]"
+                                  style={{ color: p.color }}
+                                />
+                                <span
+                                  className="font-black text-[24px] leading-none"
+                                  style={{ color: p.color }}
+                                >
+                                  {p.perfectGames}
+                                </span>
+                              </div>
+                              <p className="text-[#62748e] text-[10px]">
+                                perfectos de {p.totalGames}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="w-full h-1.5 bg-[#314158] rounded-full overflow-hidden mb-1">
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${perfectPct}%`,
+                                background: `linear-gradient(90deg, ${p.color}, #fbbf24)`,
+                              }}
+                            />
+                          </div>
+                          <p className="text-[#45556c] text-[9px] text-right">
+                            {perfectPct}% perfeccionados
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* El Cazatrofeos — Rareza Máxima */}
+              <div className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[24px] p-6 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
+                <div className="flex items-center gap-2 mb-1">
+                  <Gem size={20} className="text-[#62748e]" />
+                  <h3 className="text-white font-bold text-[18px]">
+                    El Cazatrofeos — Rareza Máxima
+                  </h3>
+                </div>
+                <p className="text-[#62748e] text-[12px] mb-5">
+                  El logro más raro que ha conseguido cada miembro del grupo
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {peopleWithLogros.map((p) => (
+                    <div
+                      key={p.name}
+                      className="bg-[rgba(29,41,61,0.5)] border border-[rgba(0,188,125,0.2)] rounded-[16px] p-5"
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                            style={{ backgroundColor: `${p.color}22` }}
+                          >
+                            <span
+                              className="font-black text-[12px]"
+                              style={{ color: p.color }}
+                            >
+                              {p.name[0].toUpperCase()}
+                            </span>
+                          </div>
+                          <span className="text-white font-bold text-[14px]">
+                            {p.name}
+                          </span>
+                        </div>
+                        <div className="bg-[rgba(0,188,125,0.1)] border border-[rgba(0,188,125,0.2)] rounded-full px-2 py-0.5">
+                          <span className="text-[#00d492] text-[9px] font-black tracking-wider">
+                            UNCOMMON
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Shield size={14} className="text-[#62748e] shrink-0" />
+                        <span className="text-white font-semibold text-[14px] truncate">
+                          {p.rarestAchievement}
+                        </span>
+                      </div>
+                      <p className="text-[#62748e] text-[10px] mb-3 pl-5">
+                        {p.rarestGame}
+                      </p>
+                      <div className="w-full h-2 bg-[rgba(49,65,88,0.5)] rounded-full overflow-hidden mb-1.5">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${p.rarityPct * 10}%`,
+                            backgroundColor: p.color,
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span
+                          className="font-black text-[12px]"
+                          style={{ color: p.color }}
+                        >
+                          {p.rarityPct}%
+                        </span>
+                        <span className="text-[#45556c] text-[9px]">
+                          de jugadores globales
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          );
+        })()}
+
+      {subTab === "radar" && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="w-16 h-16 rounded-full bg-[rgba(15,23,43,0.8)] border border-[#1d293d] flex items-center justify-center mb-4">
             <BarChart2 size={32} className="text-[#51a2ff]" />
