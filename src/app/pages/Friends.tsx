@@ -99,6 +99,15 @@ const MOCK_TIME = [
   { totalHours: 1200, topGame: "Counter-Strike 2", topGameHours: 800 }, // Friend3
   { totalHours: 9000, topGame: "Stardew Valley", topGameHours: 2400 }, // Friend4
   { totalHours: 2100, topGame: "Street Fighter 6", topGameHours: 900 }, // Friend5
+
+const MOCK_LOGROS = [
+  { completionPct: 55, totalAchievements: 400, perfectGames: 8,  totalGames: 87, rarestAchievement: "Against All Odds",   rarestGame: "Celeste",          rarityPct: 3.2 }, // Yo
+  { completionPct: 45, totalAchievements: 350, perfectGames: 3,  totalGames: 54, rarestAchievement: "Eminent Presence",   rarestGame: "Dota 2",           rarityPct: 4.1 }, // Friend1
+  { completionPct: 72, totalAchievements: 580, perfectGames: 12, totalGames: 80, rarestAchievement: "Walked the Path",    rarestGame: "The Witcher 3",    rarityPct: 5.3 }, // Friend2
+  { completionPct: 30, totalAchievements: 120, perfectGames: 1,  totalGames: 29, rarestAchievement: "Cold Blooded",       rarestGame: "Counter-Strike 2", rarityPct: 2.8 }, // Friend3
+  { completionPct: 85, totalAchievements: 900, perfectGames: 22, totalGames: 90, rarestAchievement: "Fector's Challenge", rarestGame: "Stardew Valley",   rarityPct: 1.9 }, // Friend4
+  { completionPct: 60, totalAchievements: 400, perfectGames: 5,  totalGames: 42, rarestAchievement: "Legendary Fighter",  rarestGame: "Street Fighter 6", rarityPct: 3.7 }, // Friend5
+];
 ];
 
 function DonutChart({
@@ -223,7 +232,7 @@ function AnalyticsPanel({
       label: "Logros",
       icon: <Trophy size={16} />,
       activeClass:
-        "bg-[#7c3aed] shadow-[0px_10px_15px_0px_rgba(109,40,217,0.3)]",
+        "bg-[#e17100] shadow-[0px_10px_15px_0px_rgba(123,51,6,0.3)]",
     },
     {
       id: "radar",
