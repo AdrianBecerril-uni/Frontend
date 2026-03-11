@@ -10,117 +10,12 @@ import {
   Star,
 } from "lucide-react";
 import { Link } from "react-router";
-
-type FeedTab = "trending" | "top" | "new" | "mine";
-
-type CommunityList = {
-  id: string;
-  title: string;
-  author: string;
-  description: string;
-  likes: number;
-  comments: number;
-  gamesCount: number;
-  image: string;
-  tag: string;
-  tagTone: string;
-  trending?: boolean;
-  newLabel?: boolean;
-  genre: string;
-};
-
-const FEED_TABS: { id: FeedTab; label: string }[] = [
-  { id: "trending", label: "Trending" },
-  { id: "top", label: "Más Votadas" },
-  { id: "new", label: "Nuevas" },
-  { id: "mine", label: "Mis Listas" },
-];
-
-const CATEGORY_CHIPS = [
-  "Todas",
-  "Accion",
-  "Co-op",
-  "Estrategia",
-  "Indie",
-  "Ofertas",
-  "RPG",
-  "Retro",
-  "Sci-Fi",
-  "Simulacion",
-  "Terror",
-];
-
-const LISTS: CommunityList[] = [
-  {
-    id: "top-rpgs-2024",
-    title: "Top RPGs de 2024",
-    author: "GamerPro99",
-    description:
-      "Los mejores juegos de rol que he jugado este año. Imprescindibles!",
-    likes: 124,
-    comments: 45,
-    gamesCount: 12,
-    image:
-      "https://www.figma.com/api/mcp/asset/b569fdcd-3e50-45c7-ad4d-c7604fbb0eca",
-    tag: "RPG",
-    tagTone:
-      "bg-[rgba(142,81,255,0.15)] border-[rgba(142,81,255,0.2)] text-[#a684ff]",
-    trending: true,
-    genre: "RPG",
-  },
-  {
-    id: "coop-amigos",
-    title: "Co-op para jugar con amigos",
-    author: "SquadLeader",
-    description:
-      "Lista definitiva para no discutir que jugar el fin de semana.",
-    likes: 256,
-    comments: 78,
-    gamesCount: 20,
-    image:
-      "https://www.figma.com/api/mcp/asset/8e3321e0-23c4-4d57-9568-8c43dc87a502",
-    tag: "Co-op",
-    tagTone:
-      "bg-[rgba(43,127,255,0.15)] border-[rgba(43,127,255,0.2)] text-[#51a2ff]",
-    trending: true,
-    genre: "Co-op",
-  },
-  {
-    id: "survival-horror-101",
-    title: "Survival Horror 101",
-    author: "DarkSoulsLover",
-    description:
-      "Los juegos mas terrorificos de Steam. No jugar solo de noche. Avisados.",
-    likes: 178,
-    comments: 56,
-    gamesCount: 15,
-    image:
-      "https://www.figma.com/api/mcp/asset/5cbcf0e4-22e8-4cfe-9081-c6540a9b3663",
-    tag: "Terror",
-    tagTone:
-      "bg-[rgba(251,44,54,0.15)] border-[rgba(251,44,54,0.2)] text-[#ff6467]",
-    trending: true,
-    genre: "Terror",
-  },
-  {
-    id: "indie-gems-2025",
-    title: "Indie Gems 2025",
-    author: "CuratedIndie",
-    description:
-      "Los indies que estan petando este año. Pequeños estudios, grandes experiencias.",
-    likes: 320,
-    comments: 92,
-    gamesCount: 4,
-    image:
-      "https://www.figma.com/api/mcp/asset/d5813370-0e92-4123-a22a-8417ecf9f35f",
-    tag: "Indie",
-    tagTone:
-      "bg-[rgba(0,188,125,0.15)] border-[rgba(0,188,125,0.2)] text-[#00d492]",
-    trending: true,
-    newLabel: true,
-    genre: "Indie",
-  },
-];
+import {
+  CATEGORY_CHIPS,
+  COMMUNITY_LISTS,
+  FEED_TABS,
+  FeedTab,
+} from "../data/communityLists";
 
 export function Lists() {
   const [feedTab, setFeedTab] = useState<FeedTab>("trending");
@@ -129,7 +24,7 @@ export function Lists() {
 
   const filteredLists = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return LISTS.filter((item) => {
+    return COMMUNITY_LISTS.filter((item) => {
       const matchesTab =
         feedTab === "trending"
           ? !!item.trending
@@ -137,7 +32,7 @@ export function Lists() {
             ? !!item.newLabel
             : feedTab === "top"
               ? item.likes >= 170
-              : item.author.toLowerCase().includes("curated");
+              : !!item.mine;
 
       const matchesCategory =
         selectedCategory === "Todas" ||
@@ -289,7 +184,7 @@ export function Lists() {
                         <Heart size={13} /> {list.likes}
                       </span>
                       <span className="flex items-center gap-1">
-                        <MessageSquare size={13} /> {list.comments}
+                        <MessageSquare size={13} /> {list.commentsCount}
                       </span>
                     </div>
                     <span className="h-[17px] rounded-[4px] bg-[#1d293d] px-2 text-[#62748e] text-[10px] font-medium flex items-center">
