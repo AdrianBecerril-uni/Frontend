@@ -6,10 +6,12 @@ import {
   ChevronRight,
   Clock3,
   Flame,
+  GripVertical,
   Heart,
   MessageSquare,
   Plus,
   Search,
+  Sparkles,
   Star,
   X,
 } from "lucide-react";
@@ -21,17 +23,130 @@ import {
   FeedTab,
 } from "../data/communityLists";
 
+type CreateGameOption = {
+  id: string;
+  title: string;
+  year: string;
+  price: string;
+  score: string;
+  image: string;
+};
+
+const CREATE_GAME_OPTIONS: CreateGameOption[] = [
+  {
+    id: "elden-ring",
+    title: "Elden Ring",
+    year: "2022",
+    price: "$49.99",
+    score: "96%",
+    image: "https://picsum.photos/seed/elden-ring-cover/80/80",
+  },
+  {
+    id: "baldurs-gate-3",
+    title: "Baldur's Gate 3",
+    year: "2023",
+    price: "$59.99",
+    score: "96%",
+    image: "https://picsum.photos/seed/bg3-cover/80/80",
+  },
+  {
+    id: "hades-2",
+    title: "Hades II",
+    year: "2024",
+    price: "$29.99",
+    score: "95%",
+    image: "https://picsum.photos/seed/hades-2-cover/80/80",
+  },
+  {
+    id: "cyberpunk-2077",
+    title: "Cyberpunk 2077",
+    year: "2020",
+    price: "$29.99",
+    score: "89%",
+    image: "https://picsum.photos/seed/cyberpunk-2077-cover/80/80",
+  },
+  {
+    id: "starfield",
+    title: "Starfield",
+    year: "2023",
+    price: "$69.99",
+    score: "85%",
+    image: "https://picsum.photos/seed/starfield-cover/80/80",
+  },
+  {
+    id: "silksong",
+    title: "Hollow Knight: Silksong",
+    year: "2025",
+    price: "$24.99",
+    score: "91%",
+    image: "https://picsum.photos/seed/silksong-cover/80/80",
+  },
+  {
+    id: "disco-elysium",
+    title: "Disco Elysium",
+    year: "2019",
+    price: "$19.99",
+    score: "97%",
+    image: "https://picsum.photos/seed/disco-elysium-cover/80/80",
+  },
+  {
+    id: "stardew-valley",
+    title: "Stardew Valley",
+    year: "2016",
+    price: "$14.99",
+    score: "93%",
+    image: "https://picsum.photos/seed/stardew-valley-cover/80/80",
+  },
+  {
+    id: "the-witcher-3",
+    title: "The Witcher 3",
+    year: "2015",
+    price: "$39.99",
+    score: "95%",
+    image: "https://picsum.photos/seed/the-witcher-3-cover/80/80",
+  },
+  {
+    id: "portal-2",
+    title: "Portal 2",
+    year: "2011",
+    price: "$9.99",
+    score: "98%",
+    image: "https://picsum.photos/seed/portal-2-cover/80/80",
+  },
+  {
+    id: "celeste",
+    title: "Celeste",
+    year: "2018",
+    price: "$19.99",
+    score: "97%",
+    image: "https://picsum.photos/seed/celeste-cover/80/80",
+  },
+  {
+    id: "factorio",
+    title: "Factorio",
+    year: "2020",
+    price: "$35.00",
+    score: "96%",
+    image: "https://picsum.photos/seed/factorio-cover/80/80",
+  },
+];
+
 export function Lists() {
   const [feedTab, setFeedTab] = useState<FeedTab>("trending");
   const [selectedCategory, setSelectedCategory] = useState("Todas");
   const [query, setQuery] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createStep, setCreateStep] = useState<1 | 2>(1);
   const [createTitle, setCreateTitle] = useState("");
   const [createDescription, setCreateDescription] = useState("");
   const [createCategory, setCreateCategory] = useState("RPG");
   const [createCover, setCreateCover] = useState(
     () => COMMUNITY_LISTS[0]?.image ?? "",
   );
+  const [createGameQuery, setCreateGameQuery] = useState("");
+  const [createSelectedGames, setCreateSelectedGames] = useState<
+    CreateGameOption[]
+  >(() => CREATE_GAME_OPTIONS.slice(0, 3));
 
   const createCategoryOptions = useMemo(
     () => CATEGORY_CHIPS.filter((chip) => chip !== "Todas"),
@@ -50,11 +165,31 @@ export function Lists() {
 
   const titleChars = createTitle.length;
   const descriptionChars = createDescription.length;
-  const canContinue =
+  const canContinueInfo =
     createTitle.trim().length > 0 &&
     createDescription.trim().length > 0 &&
     createCategory.length > 0 &&
     createCover.length > 0;
+  const canContinueGames = createSelectedGames.length > 0;
+
+  const closeCreateModal = () => {
+    setIsCreateModalOpen(false);
+    setCreateStep(1);
+    setCreateGameQuery("");
+  };
+
+  const addGameToSelection = (game: CreateGameOption) => {
+    setCreateSelectedGames((prev) => {
+      if (prev.some((item) => item.id === game.id)) {
+        return prev;
+      }
+      return [...prev, game];
+    });
+  };
+
+  const removeGameFromSelection = (gameId: string) => {
+    setCreateSelectedGames((prev) => prev.filter((game) => game.id !== gameId));
+  };
 
   useEffect(() => {
     if (!isCreateModalOpen) {
@@ -76,13 +211,26 @@ export function Lists() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsCreateModalOpen(false);
+        closeCreateModal();
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isCreateModalOpen]);
+
+  const filteredCreateGameOptions = useMemo(() => {
+    const q = createGameQuery.trim().toLowerCase();
+    const selectedIds = new Set(createSelectedGames.map((game) => game.id));
+
+    return CREATE_GAME_OPTIONS.filter((game) => {
+      if (selectedIds.has(game.id)) {
+        return false;
+      }
+
+      return q.length === 0 || game.title.toLowerCase().includes(q);
+    }).slice(0, 8);
+  }, [createGameQuery, createSelectedGames]);
 
   const filteredLists = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -131,7 +279,10 @@ export function Lists() {
         <button
           className="h-9 px-4 rounded-[10px] bg-[#009966] text-white text-[14px] font-medium flex items-center gap-2 hover:bg-[#00ad74] transition-colors self-start"
           type="button"
-          onClick={() => setIsCreateModalOpen(true)}
+          onClick={() => {
+            setCreateStep(1);
+            setIsCreateModalOpen(true);
+          }}
         >
           <Plus size={18} /> Crear Lista
         </button>
@@ -292,17 +443,17 @@ export function Lists() {
       {isCreateModalOpen && (
         <div
           className="fixed inset-0 z-40 bg-[rgba(2,6,24,0.78)] backdrop-blur-[2px] px-4 py-8 overflow-y-auto"
-          onClick={() => setIsCreateModalOpen(false)}
+          onClick={closeCreateModal}
         >
           <div
-            className="mx-auto w-full max-w-[780px] rounded-[14px] border border-[#1e2c46] bg-[#020b22] shadow-[0px_40px_80px_0px_rgba(0,0,0,0.55)] overflow-hidden"
+            className="mx-auto w-full max-w-[672px] rounded-[16px] border border-[#1e2c46] bg-[#020b22] shadow-[0px_30px_70px_0px_rgba(0,0,0,0.55)] overflow-hidden"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="px-8 pt-4 pb-5 bg-[linear-gradient(90deg,#12265f_0%,#23164f_50%,#24133f_100%)] border-b border-[#1e2c46]">
+            <div className="px-6 pt-6 pb-4 bg-[linear-gradient(90deg,rgba(21,93,252,0.2)_0%,rgba(79,57,246,0.2)_50%,rgba(152,16,250,0.2)_100%)] border-b border-[#1e2c46]">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-[31px] leading-none font-bold text-white flex items-center gap-2">
-                    <Star size={14} className="text-[#3cb5ff]" />
+                  <h2 className="text-[20px] leading-none font-semibold text-white flex items-center gap-2">
+                    <Sparkles size={18} className="text-[#3cb5ff]" />
                     Crear Nueva Lista
                   </h2>
                   <p className="mt-2 text-[14px] text-[#90a1b9]">
@@ -313,7 +464,7 @@ export function Lists() {
                 <button
                   type="button"
                   className="h-7 w-7 rounded-full text-[#6f7d94] hover:text-white hover:bg-[rgba(255,255,255,0.08)] transition-colors flex items-center justify-center"
-                  onClick={() => setIsCreateModalOpen(false)}
+                  onClick={closeCreateModal}
                   aria-label="Cerrar modal"
                 >
                   <X size={16} />
@@ -321,21 +472,51 @@ export function Lists() {
               </div>
 
               <div className="mt-5 flex items-center gap-2 text-[12px]">
-                <div className="flex items-center gap-2 text-white">
-                  <span className="h-5 w-5 rounded-full bg-[#2b7fff] flex items-center justify-center text-[11px] font-semibold">
-                    1
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold ${
+                      createStep === 1
+                        ? "bg-[#2b7fff] text-white"
+                        : "bg-[#00bc7d] text-white"
+                    }`}
+                  >
+                    {createStep === 1 ? "1" : <Check size={14} />}
                   </span>
-                  <span>Info</span>
+                  <span
+                    className={`font-medium ${
+                      createStep === 1 ? "text-white" : "text-[#62748e]"
+                    }`}
+                  >
+                    Info
+                  </span>
                 </div>
-                <div className="h-px flex-1 bg-[#40517b]" />
-                <div className="flex items-center gap-2 text-[#5f6f8f]">
-                  <span className="h-5 w-5 rounded-full bg-[#253353] flex items-center justify-center text-[11px] font-semibold">
+                <div
+                  className={`h-px flex-1 ${
+                    createStep === 2
+                      ? "bg-[rgba(0,188,125,0.5)]"
+                      : "bg-[#40517b]"
+                  }`}
+                />
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold ${
+                      createStep === 2
+                        ? "bg-[#2b7fff] text-white"
+                        : "bg-[#253353] text-[#62748e]"
+                    }`}
+                  >
                     2
                   </span>
-                  <span>Juegos</span>
+                  <span
+                    className={`font-medium ${
+                      createStep === 2 ? "text-white" : "text-[#62748e]"
+                    }`}
+                  >
+                    Juegos
+                  </span>
                 </div>
                 <div className="h-px flex-1 bg-[#2a3554]" />
-                <div className="flex items-center gap-2 text-[#5f6f8f]">
+                <div className="flex items-center gap-2 text-[#5f6f8f] opacity-40">
                   <span className="h-5 w-5 rounded-full bg-[#253353] flex items-center justify-center text-[11px] font-semibold">
                     3
                   </span>
@@ -344,136 +525,263 @@ export function Lists() {
               </div>
             </div>
 
-            <div className="px-8 py-6 space-y-6">
-              <div>
-                <div className="mb-2 flex items-center justify-between text-[14px]">
-                  <label
-                    htmlFor="list-title"
-                    className="text-[#cad5e2] font-medium"
-                  >
-                    Titulo de la lista <span className="text-[#ff5f6d]">*</span>
-                  </label>
-                  <span className="text-[#62748e] text-[12px]">
-                    {titleChars}/80
-                  </span>
-                </div>
-                <input
-                  id="list-title"
-                  value={createTitle}
-                  onChange={(event) =>
-                    setCreateTitle(event.target.value.slice(0, 80))
-                  }
-                  placeholder="Ej: Top RPGs de todos los tiempos"
-                  className="w-full h-11 rounded-[10px] bg-[#0f1f3b] border border-[#2f405e] px-4 text-[14px] text-[#cad5e2] placeholder:text-[#62748e] focus:outline-none focus:border-[#2b7fff]"
-                />
-              </div>
-
-              <div>
-                <div className="mb-2 flex items-center justify-between text-[14px]">
-                  <label
-                    htmlFor="list-description"
-                    className="text-[#cad5e2] font-medium"
-                  >
-                    Descripcion
-                  </label>
-                  <span className="text-[#62748e] text-[12px]">
-                    {descriptionChars}/200
-                  </span>
-                </div>
-                <textarea
-                  id="list-description"
-                  value={createDescription}
-                  onChange={(event) =>
-                    setCreateDescription(event.target.value.slice(0, 200))
-                  }
-                  placeholder="Cuentale a la comunidad de que va tu lista..."
-                  className="w-full h-[96px] rounded-[12px] bg-[#0f1f3b] border border-[#2f405e] px-4 py-3 text-[14px] text-[#cad5e2] placeholder:text-[#62748e] focus:outline-none focus:border-[#2b7fff] resize-none"
-                />
-              </div>
-
-              <div>
-                <p className="mb-2 text-[14px] text-[#cad5e2] font-medium">
-                  Categoria <span className="text-[#ff5f6d]">*</span>
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                  {createCategoryOptions.map((option) => {
-                    const active = createCategory === option;
-                    return (
-                      <button
-                        key={option}
-                        type="button"
-                        onClick={() => setCreateCategory(option)}
-                        className={`h-[50px] rounded-[10px] border text-[12px] transition-colors ${
-                          active
-                            ? "bg-[#1a3770] border-[#2b7fff] text-white"
-                            : "bg-[#111f3a] border-[#2f405e] text-[#a7b6cd] hover:text-white"
-                        }`}
+            {createStep === 1 ? (
+              <>
+                <div className="px-6 py-6 space-y-6">
+                  <div>
+                    <div className="mb-2 flex items-center justify-between text-[14px]">
+                      <label
+                        htmlFor="list-title"
+                        className="text-[#cad5e2] font-medium"
                       >
-                        {option}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                        Titulo de la lista{" "}
+                        <span className="text-[#ff5f6d]">*</span>
+                      </label>
+                      <span className="text-[#62748e] text-[12px]">
+                        {titleChars}/80
+                      </span>
+                    </div>
+                    <input
+                      id="list-title"
+                      value={createTitle}
+                      onChange={(event) =>
+                        setCreateTitle(event.target.value.slice(0, 80))
+                      }
+                      placeholder="Ej: Top RPGs de todos los tiempos"
+                      className="w-full h-11 rounded-[10px] bg-[#0f1f3b] border border-[#2f405e] px-4 text-[14px] text-[#cad5e2] placeholder:text-[#62748e] focus:outline-none focus:border-[#2b7fff]"
+                    />
+                  </div>
 
-              <div>
-                <p className="mb-2 text-[14px] text-[#cad5e2] font-medium">
-                  Portada
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {createCoverOptions.map((cover) => {
-                    const active = createCover === cover.image;
-                    return (
-                      <button
-                        key={cover.id}
-                        type="button"
-                        onClick={() => setCreateCover(cover.image)}
-                        className={`relative h-[88px] rounded-[10px] overflow-hidden border transition-colors ${
-                          active
-                            ? "border-[#2b7fff]"
-                            : "border-[#2f405e] hover:border-[#4766a3]"
-                        }`}
-                        aria-label={`Seleccionar portada ${cover.title}`}
+                  <div>
+                    <div className="mb-2 flex items-center justify-between text-[14px]">
+                      <label
+                        htmlFor="list-description"
+                        className="text-[#cad5e2] font-medium"
                       >
-                        <img
-                          src={cover.image}
-                          alt={cover.title}
-                          className="absolute inset-0 h-full w-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[rgba(1,8,22,0.85)] to-transparent" />
-                        {active && (
-                          <span className="absolute top-2 right-2 h-5 w-5 rounded-full bg-[#2b7fff] flex items-center justify-center text-white">
-                            <Check size={12} />
+                        Descripcion
+                      </label>
+                      <span className="text-[#62748e] text-[12px]">
+                        {descriptionChars}/200
+                      </span>
+                    </div>
+                    <textarea
+                      id="list-description"
+                      value={createDescription}
+                      onChange={(event) =>
+                        setCreateDescription(event.target.value.slice(0, 200))
+                      }
+                      placeholder="Cuentale a la comunidad de que va tu lista..."
+                      className="w-full h-[96px] rounded-[12px] bg-[#0f1f3b] border border-[#2f405e] px-4 py-3 text-[14px] text-[#cad5e2] placeholder:text-[#62748e] focus:outline-none focus:border-[#2b7fff] resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-[14px] text-[#cad5e2] font-medium">
+                      Categoria <span className="text-[#ff5f6d]">*</span>
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                      {createCategoryOptions.map((option) => {
+                        const active = createCategory === option;
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => setCreateCategory(option)}
+                            className={`h-[50px] rounded-[10px] border text-[12px] transition-colors ${
+                              active
+                                ? "bg-[#1a3770] border-[#2b7fff] text-white"
+                                : "bg-[#111f3a] border-[#2f405e] text-[#a7b6cd] hover:text-white"
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-[14px] text-[#cad5e2] font-medium">
+                      Portada
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {createCoverOptions.map((cover) => {
+                        const active = createCover === cover.image;
+                        return (
+                          <button
+                            key={cover.id}
+                            type="button"
+                            onClick={() => setCreateCover(cover.image)}
+                            className={`relative h-[88px] rounded-[10px] overflow-hidden border transition-colors ${
+                              active
+                                ? "border-[#2b7fff]"
+                                : "border-[#2f405e] hover:border-[#4766a3]"
+                            }`}
+                            aria-label={`Seleccionar portada ${cover.title}`}
+                          >
+                            <img
+                              src={cover.image}
+                              alt={cover.title}
+                              className="absolute inset-0 h-full w-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-[rgba(1,8,22,0.85)] to-transparent" />
+                            {active && (
+                              <span className="absolute top-2 right-2 h-5 w-5 rounded-full bg-[#2b7fff] flex items-center justify-center text-white">
+                                <Check size={12} />
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-6 py-4 border-t border-[#1e2c46] bg-[rgba(2,6,24,0.8)] flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={closeCreateModal}
+                    className="h-10 px-3 rounded-[10px] text-[#a3b3cb] text-[14px] flex items-center gap-2 hover:text-white transition-colors"
+                  >
+                    <ChevronLeft size={14} /> Cancelar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCreateStep(2)}
+                    disabled={!canContinueInfo}
+                    className={`h-10 px-5 rounded-[14px] text-[14px] font-medium flex items-center gap-2 transition-colors ${
+                      canContinueInfo
+                        ? "bg-[#155dfc] text-white hover:bg-[#2b7fff]"
+                        : "bg-[#1c2f5c] text-[#6c84b3] cursor-not-allowed"
+                    }`}
+                  >
+                    Siguiente <ChevronRight size={14} />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="px-6 py-5 space-y-4">
+                  <div>
+                    <p className="text-[14px] font-medium text-[#cad5e2] mb-2">
+                      Tu seleccion ({createSelectedGames.length})
+                    </p>
+                    <div className="space-y-2 max-h-[192px] overflow-y-auto pr-1">
+                      {createSelectedGames.map((game, index) => (
+                        <div
+                          key={game.id}
+                          className="h-[62px] rounded-[14px] border border-[#1d293d] bg-[#0f172b] px-3 flex items-center gap-3"
+                        >
+                          <GripVertical size={14} className="text-[#45556c]" />
+                          <span className="text-[12px] font-bold text-[#45556c] w-5 text-center">
+                            #{index + 1}
                           </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                          <img
+                            src={game.image}
+                            alt={game.title}
+                            className="h-10 w-10 rounded-[10px] object-cover"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[14px] text-white truncate">
+                              {game.title}
+                            </p>
+                            <p className="text-[10px] text-[#62748e]">
+                              {game.year} · {game.price}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeGameFromSelection(game.id)}
+                            className="h-6 w-6 rounded-full text-[#62748e] hover:text-white hover:bg-[#1d293d] flex items-center justify-center"
+                            aria-label={`Quitar ${game.title}`}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-[14px] font-medium text-[#cad5e2] mb-2">
+                      Buscar juegos para anadir
+                    </p>
+                    <div className="relative">
+                      <Search
+                        size={14}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-[#62748e]"
+                      />
+                      <input
+                        value={createGameQuery}
+                        onChange={(event) =>
+                          setCreateGameQuery(event.target.value)
+                        }
+                        placeholder="Buscar por nombre..."
+                        className="w-full h-[42px] rounded-[14px] bg-[#0f172b] border border-[#314158] pl-9 pr-4 text-[14px] text-[#cad5e2] placeholder:text-[#45556c] focus:outline-none focus:border-[#2b7fff]"
+                      />
+                    </div>
+
+                    <div className="mt-3 space-y-1.5 max-h-[224px] overflow-y-auto pr-1">
+                      {filteredCreateGameOptions.map((game) => (
+                        <button
+                          key={game.id}
+                          type="button"
+                          onClick={() => addGameToSelection(game)}
+                          className="w-full h-[62px] rounded-[14px] border border-[rgba(29,41,61,0.5)] bg-[rgba(15,23,43,0.5)] px-3 flex items-center gap-3 text-left hover:border-[#2b7fff] transition-colors"
+                        >
+                          <img
+                            src={game.image}
+                            alt={game.title}
+                            className="h-10 w-10 rounded-[10px] object-cover"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[14px] font-medium text-[#cad5e2] truncate">
+                              {game.title}
+                            </p>
+                            <p className="text-[10px] text-[#62748e]">
+                              {game.year} · {game.price} ·{" "}
+                              <span className="text-[#51a2ff]">
+                                {game.score}
+                              </span>
+                            </p>
+                          </div>
+                          <Plus size={16} className="text-[#51a2ff]" />
+                        </button>
+                      ))}
+
+                      {filteredCreateGameOptions.length === 0 && (
+                        <div className="h-[62px] rounded-[14px] border border-[rgba(29,41,61,0.5)] bg-[rgba(15,23,43,0.5)] px-4 flex items-center text-[13px] text-[#62748e]">
+                          No hay mas juegos disponibles con ese filtro.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="px-8 py-3 border-t border-[#1e2c46] bg-[#010a1f] flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setIsCreateModalOpen(false)}
-                className="h-10 px-3 rounded-[10px] text-[#a3b3cb] text-[14px] flex items-center gap-2 hover:text-white transition-colors"
-              >
-                <ChevronLeft size={14} /> Cancelar
-              </button>
+                <div className="px-6 py-4 border-t border-[#1e2c46] bg-[rgba(2,6,24,0.8)] flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setCreateStep(1)}
+                    className="h-9 px-3 rounded-[10px] text-[#90a1b9] text-[14px] flex items-center gap-2 hover:text-white transition-colors"
+                  >
+                    <ChevronLeft size={14} /> Atras
+                  </button>
 
-              <button
-                type="button"
-                disabled={!canContinue}
-                className={`h-10 px-5 rounded-[10px] text-[14px] font-medium flex items-center gap-2 transition-colors ${
-                  canContinue
-                    ? "bg-[#155dfc] text-white hover:bg-[#2b7fff]"
-                    : "bg-[#1c2f5c] text-[#6c84b3] cursor-not-allowed"
-                }`}
-              >
-                Siguiente <ChevronRight size={14} />
-              </button>
-            </div>
+                  <button
+                    type="button"
+                    disabled={!canContinueGames}
+                    className={`h-10 px-5 rounded-[14px] text-[14px] font-medium flex items-center gap-2 transition-colors ${
+                      canContinueGames
+                        ? "bg-[#155dfc] text-white hover:bg-[#2b7fff]"
+                        : "bg-[#1c2f5c] text-[#6c84b3] cursor-not-allowed"
+                    }`}
+                  >
+                    Siguiente <ChevronRight size={14} />
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
