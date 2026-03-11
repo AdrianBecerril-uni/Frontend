@@ -1,6 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bookmark,
+  Check,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Flame,
   Heart,
@@ -8,6 +11,7 @@ import {
   Plus,
   Search,
   Star,
+  X,
 } from "lucide-react";
 import { Link } from "react-router";
 import {
@@ -21,6 +25,64 @@ export function Lists() {
   const [feedTab, setFeedTab] = useState<FeedTab>("trending");
   const [selectedCategory, setSelectedCategory] = useState("Todas");
   const [query, setQuery] = useState("");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createTitle, setCreateTitle] = useState("");
+  const [createDescription, setCreateDescription] = useState("");
+  const [createCategory, setCreateCategory] = useState("RPG");
+  const [createCover, setCreateCover] = useState(
+    () => COMMUNITY_LISTS[0]?.image ?? "",
+  );
+
+  const createCategoryOptions = useMemo(
+    () => CATEGORY_CHIPS.filter((chip) => chip !== "Todas"),
+    [],
+  );
+
+  const createCoverOptions = useMemo(
+    () =>
+      COMMUNITY_LISTS.slice(0, 3).map((item) => ({
+        id: item.id,
+        title: item.title,
+        image: item.image,
+      })),
+    [],
+  );
+
+  const titleChars = createTitle.length;
+  const descriptionChars = createDescription.length;
+  const canContinue =
+    createTitle.trim().length > 0 &&
+    createDescription.trim().length > 0 &&
+    createCategory.length > 0 &&
+    createCover.length > 0;
+
+  useEffect(() => {
+    if (!isCreateModalOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isCreateModalOpen]);
+
+  useEffect(() => {
+    if (!isCreateModalOpen) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsCreateModalOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isCreateModalOpen]);
 
   const filteredLists = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -67,8 +129,9 @@ export function Lists() {
         </div>
 
         <button
-          className="h-9 px-4 rounded-[10px] bg-[#314158] text-[#90a1b9] text-[14px] font-medium flex items-center gap-2 hover:bg-[#3b4d67] transition-colors self-start"
+          className="h-9 px-4 rounded-[10px] bg-[#009966] text-white text-[14px] font-medium flex items-center gap-2 hover:bg-[#00ad74] transition-colors self-start"
           type="button"
+          onClick={() => setIsCreateModalOpen(true)}
         >
           <Plus size={18} /> Crear Lista
         </button>
@@ -225,6 +288,195 @@ export function Lists() {
           </div>
         )}
       </div>
+
+      {isCreateModalOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-[rgba(2,6,24,0.78)] backdrop-blur-[2px] px-4 py-8 overflow-y-auto"
+          onClick={() => setIsCreateModalOpen(false)}
+        >
+          <div
+            className="mx-auto w-full max-w-[780px] rounded-[14px] border border-[#1e2c46] bg-[#020b22] shadow-[0px_40px_80px_0px_rgba(0,0,0,0.55)] overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="px-8 pt-4 pb-5 bg-[linear-gradient(90deg,#12265f_0%,#23164f_50%,#24133f_100%)] border-b border-[#1e2c46]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-[31px] leading-none font-bold text-white flex items-center gap-2">
+                    <Star size={14} className="text-[#3cb5ff]" />
+                    Crear Nueva Lista
+                  </h2>
+                  <p className="mt-2 text-[14px] text-[#90a1b9]">
+                    Comparte tu coleccion curada con la comunidad
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  className="h-7 w-7 rounded-full text-[#6f7d94] hover:text-white hover:bg-[rgba(255,255,255,0.08)] transition-colors flex items-center justify-center"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  aria-label="Cerrar modal"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="mt-5 flex items-center gap-2 text-[12px]">
+                <div className="flex items-center gap-2 text-white">
+                  <span className="h-5 w-5 rounded-full bg-[#2b7fff] flex items-center justify-center text-[11px] font-semibold">
+                    1
+                  </span>
+                  <span>Info</span>
+                </div>
+                <div className="h-px flex-1 bg-[#40517b]" />
+                <div className="flex items-center gap-2 text-[#5f6f8f]">
+                  <span className="h-5 w-5 rounded-full bg-[#253353] flex items-center justify-center text-[11px] font-semibold">
+                    2
+                  </span>
+                  <span>Juegos</span>
+                </div>
+                <div className="h-px flex-1 bg-[#2a3554]" />
+                <div className="flex items-center gap-2 text-[#5f6f8f]">
+                  <span className="h-5 w-5 rounded-full bg-[#253353] flex items-center justify-center text-[11px] font-semibold">
+                    3
+                  </span>
+                  <span>Vista previa</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-8 py-6 space-y-6">
+              <div>
+                <div className="mb-2 flex items-center justify-between text-[14px]">
+                  <label
+                    htmlFor="list-title"
+                    className="text-[#cad5e2] font-medium"
+                  >
+                    Titulo de la lista <span className="text-[#ff5f6d]">*</span>
+                  </label>
+                  <span className="text-[#62748e] text-[12px]">
+                    {titleChars}/80
+                  </span>
+                </div>
+                <input
+                  id="list-title"
+                  value={createTitle}
+                  onChange={(event) =>
+                    setCreateTitle(event.target.value.slice(0, 80))
+                  }
+                  placeholder="Ej: Top RPGs de todos los tiempos"
+                  className="w-full h-11 rounded-[10px] bg-[#0f1f3b] border border-[#2f405e] px-4 text-[14px] text-[#cad5e2] placeholder:text-[#62748e] focus:outline-none focus:border-[#2b7fff]"
+                />
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between text-[14px]">
+                  <label
+                    htmlFor="list-description"
+                    className="text-[#cad5e2] font-medium"
+                  >
+                    Descripcion
+                  </label>
+                  <span className="text-[#62748e] text-[12px]">
+                    {descriptionChars}/200
+                  </span>
+                </div>
+                <textarea
+                  id="list-description"
+                  value={createDescription}
+                  onChange={(event) =>
+                    setCreateDescription(event.target.value.slice(0, 200))
+                  }
+                  placeholder="Cuentale a la comunidad de que va tu lista..."
+                  className="w-full h-[96px] rounded-[12px] bg-[#0f1f3b] border border-[#2f405e] px-4 py-3 text-[14px] text-[#cad5e2] placeholder:text-[#62748e] focus:outline-none focus:border-[#2b7fff] resize-none"
+                />
+              </div>
+
+              <div>
+                <p className="mb-2 text-[14px] text-[#cad5e2] font-medium">
+                  Categoria <span className="text-[#ff5f6d]">*</span>
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  {createCategoryOptions.map((option) => {
+                    const active = createCategory === option;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setCreateCategory(option)}
+                        className={`h-[50px] rounded-[10px] border text-[12px] transition-colors ${
+                          active
+                            ? "bg-[#1a3770] border-[#2b7fff] text-white"
+                            : "bg-[#111f3a] border-[#2f405e] text-[#a7b6cd] hover:text-white"
+                        }`}
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-[14px] text-[#cad5e2] font-medium">
+                  Portada
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {createCoverOptions.map((cover) => {
+                    const active = createCover === cover.image;
+                    return (
+                      <button
+                        key={cover.id}
+                        type="button"
+                        onClick={() => setCreateCover(cover.image)}
+                        className={`relative h-[88px] rounded-[10px] overflow-hidden border transition-colors ${
+                          active
+                            ? "border-[#2b7fff]"
+                            : "border-[#2f405e] hover:border-[#4766a3]"
+                        }`}
+                        aria-label={`Seleccionar portada ${cover.title}`}
+                      >
+                        <img
+                          src={cover.image}
+                          alt={cover.title}
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-[rgba(1,8,22,0.85)] to-transparent" />
+                        {active && (
+                          <span className="absolute top-2 right-2 h-5 w-5 rounded-full bg-[#2b7fff] flex items-center justify-center text-white">
+                            <Check size={12} />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-8 py-3 border-t border-[#1e2c46] bg-[#010a1f] flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="h-10 px-3 rounded-[10px] text-[#a3b3cb] text-[14px] flex items-center gap-2 hover:text-white transition-colors"
+              >
+                <ChevronLeft size={14} /> Cancelar
+              </button>
+
+              <button
+                type="button"
+                disabled={!canContinue}
+                className={`h-10 px-5 rounded-[10px] text-[14px] font-medium flex items-center gap-2 transition-colors ${
+                  canContinue
+                    ? "bg-[#155dfc] text-white hover:bg-[#2b7fff]"
+                    : "bg-[#1c2f5c] text-[#6c84b3] cursor-not-allowed"
+                }`}
+              >
+                Siguiente <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
