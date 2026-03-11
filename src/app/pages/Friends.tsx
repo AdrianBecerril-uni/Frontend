@@ -158,6 +158,138 @@ const MOCK_LOGROS = [
   }, // Friend5
 ];
 
+type RadarAxisKey =
+  | "volumen"
+  | "dedicacion"
+  | "rentabilidad"
+  | "perfeccionismo"
+  | "fidelidad";
+
+const RADAR_AXES: {
+  key: RadarAxisKey;
+  emoji: string;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: "volumen",
+    emoji: "📚",
+    label: "Volumen",
+    description: "Tamano de la biblioteca",
+  },
+  {
+    key: "dedicacion",
+    emoji: "⏰",
+    label: "Dedicacion",
+    description: "Horas totales jugadas",
+  },
+  {
+    key: "rentabilidad",
+    emoji: "💰",
+    label: "Rentabilidad",
+    description: "Menor coste por hora",
+  },
+  {
+    key: "perfeccionismo",
+    emoji: "🏆",
+    label: "Perfeccionismo",
+    description: "Tasa de logros completados",
+  },
+  {
+    key: "fidelidad",
+    emoji: "❤️",
+    label: "Fidelidad",
+    description: "Horas concentradas en su top 1",
+  },
+];
+
+const MOCK_RADAR: {
+  archetype: string;
+  archetypeEmoji: string;
+  quote: string;
+  average: number;
+  scores: Record<RadarAxisKey, number>;
+}[] = [
+  {
+    archetype: "El Ahorrador",
+    archetypeEmoji: "💰",
+    quote: '"Exprime cada centimo"',
+    average: 4.1,
+    scores: {
+      volumen: 4.7,
+      dedicacion: 3.1,
+      rentabilidad: 5.7,
+      perfeccionismo: 5.1,
+      fidelidad: 1.8,
+    },
+  },
+  {
+    archetype: "El Monotematico",
+    archetypeEmoji: "❤️",
+    quote: '"Tiene su juego favorito y lo demas sobra"',
+    average: 6.4,
+    scores: {
+      volumen: 3.6,
+      dedicacion: 4.9,
+      rentabilidad: 10,
+      perfeccionismo: 3.5,
+      fidelidad: 10,
+    },
+  },
+  {
+    archetype: "El Tryhard",
+    archetypeEmoji: "🏆",
+    quote: '"No deja logro sin desbloquear"',
+    average: 4.0,
+    scores: {
+      volumen: 6.8,
+      dedicacion: 3.3,
+      rentabilidad: 1,
+      perfeccionismo: 7.9,
+      fidelidad: 1,
+    },
+  },
+  {
+    archetype: "El Ahorrador",
+    archetypeEmoji: "💰",
+    quote: '"Exprime cada centimo"',
+    average: 4.4,
+    scores: {
+      volumen: 1,
+      dedicacion: 1,
+      rentabilidad: 9.6,
+      perfeccionismo: 1,
+      fidelidad: 9.4,
+    },
+  },
+  {
+    archetype: "El Tryhard",
+    archetypeEmoji: "🏆",
+    quote: '"No deja logro sin desbloquear"',
+    average: 8.0,
+    scores: {
+      volumen: 10,
+      dedicacion: 10,
+      rentabilidad: 7.1,
+      perfeccionismo: 10,
+      fidelidad: 2.9,
+    },
+  },
+  {
+    archetype: "El Ahorrador",
+    archetypeEmoji: "💰",
+    quote: '"Exprime cada centimo"',
+    average: 4.5,
+    scores: {
+      volumen: 2.2,
+      dedicacion: 2.1,
+      rentabilidad: 6.7,
+      perfeccionismo: 5.9,
+      fidelidad: 5.5,
+    },
+  },
+];
+
 function DonutChart({
   pct,
   color,
@@ -286,7 +418,7 @@ function AnalyticsPanel({
       label: "Radar",
       icon: <Hexagon size={16} />,
       activeClass:
-        "bg-[#0891b2] shadow-[0px_10px_15px_0px_rgba(8,145,178,0.3)]",
+        "bg-[#005ad3] shadow-[0px_10px_15px_0px_rgba(0,90,211,0.35)]",
     },
   ];
 
@@ -1069,17 +1201,299 @@ function AnalyticsPanel({
           );
         })()}
 
-      {subTab === "radar" && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-16 h-16 rounded-full bg-[rgba(15,23,43,0.8)] border border-[#1d293d] flex items-center justify-center mb-4">
-            <BarChart2 size={32} className="text-[#51a2ff]" />
-          </div>
-          <h2 className="text-xl font-bold text-white mb-2">Próximamente</h2>
-          <p className="text-[#62748e] text-sm">
-            Esta sección estará disponible próximamente.
-          </p>
-        </div>
-      )}
+      {subTab === "radar" &&
+        (() => {
+          const radarPeople = people.map((p, i) => ({
+            ...p,
+            ...(MOCK_RADAR[i] ?? MOCK_RADAR[MOCK_RADAR.length - 1]),
+          }));
+
+          const chartSize = 420;
+          const cx = chartSize / 2;
+          const cy = chartSize / 2;
+          const outerRadius = 138;
+          const rings = 5;
+          const axisStep = (Math.PI * 2) / RADAR_AXES.length;
+
+          const axisPoints = RADAR_AXES.map((axis, index) => {
+            const angle = -Math.PI / 2 + axisStep * index;
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            return {
+              ...axis,
+              angle,
+              cos,
+              sin,
+              x: cx + cos * outerRadius,
+              y: cy + sin * outerRadius,
+              labelX: cx + cos * (outerRadius + 18),
+              labelY: cy + sin * (outerRadius + 18),
+            };
+          });
+
+          const ringPolygon = (ring: number) => {
+            const factor = ring / rings;
+            return axisPoints
+              .map(
+                (p) =>
+                  `${cx + p.cos * outerRadius * factor},${cy + p.sin * outerRadius * factor}`,
+              )
+              .join(" ");
+          };
+
+          const seriesPolygon = (scores: Record<RadarAxisKey, number>) =>
+            axisPoints
+              .map((p) => {
+                const value = Math.max(0, Math.min(10, scores[p.key]));
+                const factor = value / 10;
+                return `${cx + p.cos * outerRadius * factor},${cy + p.sin * outerRadius * factor}`;
+              })
+              .join(" ");
+
+          return (
+            <>
+              <div
+                className="flex items-center gap-4 px-6 py-5 rounded-[24px] border border-[rgba(109,40,217,0.35)]"
+                style={{
+                  background:
+                    "linear-gradient(90deg, rgba(36,11,89,0.7) 0%, rgba(55,17,106,0.45) 45%, rgba(108,14,74,0.55) 100%)",
+                }}
+              >
+                <div className="w-[52px] h-[52px] shrink-0 bg-[rgba(109,40,217,0.2)] rounded-[16px] flex items-center justify-center">
+                  <Hexagon size={26} className="text-[#8d73ff]" />
+                </div>
+                <div>
+                  <h2 className="text-[36px] leading-[1.1] font-bold text-white">
+                    Radar Definitivo
+                  </h2>
+                  <p className="text-[#90a1b9] text-[14px]">
+                    El perfil completo de cada jugador de un solo vistazo - 5
+                    ejes, puntuados del 1 al 10
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-[rgba(7,17,45,0.84)] border border-[#1d293d] rounded-[24px] p-6 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Hexagon size={20} className="text-[#8d73ff]" />
+                      <h3 className="text-white font-bold text-[32px] leading-none">
+                        Grafico de Arana Comparativo
+                      </h3>
+                    </div>
+                    <div className="px-3 py-1.5 bg-[rgba(29,41,61,0.5)] border border-[rgba(49,65,88,0.6)] rounded-full flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-full bg-[#314158] text-[#90a1b9] text-[10px] leading-none flex items-center justify-center">
+                        i
+                      </span>
+                      <span className="text-[#90a1b9] text-[10px]">
+                        Puntuacion relativa dentro del grupo (1-10)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {RADAR_AXES.map((axis) => (
+                      <div
+                        key={axis.key}
+                        className="bg-[rgba(29,41,61,0.65)] border border-[rgba(49,65,88,0.45)] rounded-full px-3 py-1 text-[11px] text-[#90a1b9]"
+                      >
+                        <span className="font-semibold text-[#cad5e2]">
+                          {axis.emoji} {axis.label}:
+                        </span>{" "}
+                        {axis.description}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="relative h-[420px] w-full overflow-hidden">
+                    <svg
+                      viewBox="0 0 720 420"
+                      className="w-full h-full"
+                      aria-label="Radar comparativo de jugadores"
+                    >
+                      {[1, 2, 3, 4, 5].map((ring) => (
+                        <polygon
+                          key={ring}
+                          points={ringPolygon(ring)}
+                          fill="none"
+                          stroke={
+                            ring === 5
+                              ? "rgba(148,163,184,0.75)"
+                              : "rgba(71,85,105,0.55)"
+                          }
+                          strokeWidth={ring === 5 ? 1.4 : 1}
+                          strokeDasharray={ring === 5 ? undefined : "4 4"}
+                        />
+                      ))}
+
+                      {axisPoints.map((p) => (
+                        <line
+                          key={`axis-${p.key}`}
+                          x1={cx}
+                          y1={cy}
+                          x2={p.x}
+                          y2={p.y}
+                          stroke="rgba(148,163,184,0.45)"
+                          strokeWidth={1}
+                        />
+                      ))}
+
+                      {[0, 2, 4, 6, 8, 10].map((tick) => (
+                        <text
+                          key={tick}
+                          x={cx + 6}
+                          y={cy - (outerRadius * tick) / 10 + 4}
+                          fill="#64748b"
+                          fontSize="10"
+                          fontWeight={500}
+                        >
+                          {tick}
+                        </text>
+                      ))}
+
+                      {radarPeople.map((p) => (
+                        <g key={p.name}>
+                          <polygon
+                            points={seriesPolygon(p.scores)}
+                            fill={`${p.color}26`}
+                            stroke={p.color}
+                            strokeWidth={2}
+                          />
+                          {axisPoints.map((axis) => {
+                            const v = p.scores[axis.key] / 10;
+                            return (
+                              <circle
+                                key={`${p.name}-${axis.key}`}
+                                cx={cx + axis.cos * outerRadius * v}
+                                cy={cy + axis.sin * outerRadius * v}
+                                r={3}
+                                fill={p.color}
+                                stroke="#0f172b"
+                                strokeWidth={1.2}
+                              />
+                            );
+                          })}
+                        </g>
+                      ))}
+
+                      {axisPoints.map((p) => {
+                        const anchor: "start" | "middle" | "end" =
+                          p.cos > 0.25
+                            ? "start"
+                            : p.cos < -0.25
+                              ? "end"
+                              : "middle";
+                        return (
+                          <text
+                            key={`label-${p.key}`}
+                            x={p.labelX}
+                            y={p.labelY}
+                            fill="#90a1b9"
+                            fontSize="13"
+                            fontWeight={700}
+                            textAnchor={anchor}
+                            dominantBaseline="middle"
+                          >
+                            {p.emoji} {p.label}
+                          </text>
+                        );
+                      })}
+                    </svg>
+
+                    <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 px-2 pb-1">
+                      {radarPeople.map((p) => (
+                        <div
+                          key={`legend-${p.name}`}
+                          className="flex items-center gap-1.5"
+                        >
+                          <span
+                            className="w-2.5 h-2.5 rounded-[2px]"
+                            style={{ backgroundColor: p.color }}
+                          />
+                          <span className="text-[12px] text-[#90a1b9]">
+                            {p.name}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {radarPeople.map((p) => (
+                  <div
+                    key={`card-${p.name}`}
+                    className="bg-[rgba(15,23,43,0.82)] border border-[#1d293d] rounded-[18px] p-4 shadow-[0px_12px_20px_0px_rgba(0,0,0,0.14)]"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-[18px]"
+                          style={{ backgroundColor: `${p.color}24` }}
+                        >
+                          {p.archetypeEmoji}
+                        </div>
+                        <div>
+                          <p className="text-white text-[26px] leading-none font-bold">
+                            {p.name}
+                          </p>
+                          <p
+                            className="text-[14px] font-semibold"
+                            style={{ color: p.color }}
+                          >
+                            {p.archetype}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-white text-[38px] leading-none font-bold">
+                          {p.average.toFixed(1)}
+                        </p>
+                        <p className="text-[#62748e] text-[12px]">media</p>
+                      </div>
+                    </div>
+
+                    <p className="text-[#62748e] text-[13px] italic mb-4">
+                      {p.quote}
+                    </p>
+
+                    <div className="space-y-2.5">
+                      {RADAR_AXES.map((axis) => {
+                        const score = p.scores[axis.key];
+                        const scoreLabel =
+                          score % 1 === 0 ? `${score}` : score.toFixed(1);
+                        return (
+                          <div
+                            key={`${p.name}-${axis.key}`}
+                            className="flex items-center gap-2.5"
+                          >
+                            <span className="w-[96px] text-[11px] text-[#7d8ea9] truncate">
+                              {axis.emoji} {axis.label}
+                            </span>
+                            <div className="flex-1 h-2 bg-[#314158] rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${score * 10}%`,
+                                  backgroundColor: p.color,
+                                }}
+                              />
+                            </div>
+                            <span className="w-7 text-right text-[12px] text-[#cad5e2] font-semibold">
+                              {scoreLabel}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          );
+        })()}
     </div>
   );
 }
