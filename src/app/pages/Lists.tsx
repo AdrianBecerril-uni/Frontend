@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Eye,
   Flame,
   GripVertical,
   Heart,
@@ -136,7 +137,7 @@ export function Lists() {
   const [selectedCategory, setSelectedCategory] = useState("Todas");
   const [query, setQuery] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createStep, setCreateStep] = useState<1 | 2>(1);
+  const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
   const [createTitle, setCreateTitle] = useState("");
   const [createDescription, setCreateDescription] = useState("");
   const [createCategory, setCreateCategory] = useState("RPG");
@@ -231,6 +232,24 @@ export function Lists() {
       return q.length === 0 || game.title.toLowerCase().includes(q);
     }).slice(0, 8);
   }, [createGameQuery, createSelectedGames]);
+
+  const previewCategoryLabel = useMemo(() => {
+    const iconByCategory: Record<string, string> = {
+      RPG: "⚔️",
+      "Co-op": "🤝",
+      Indie: "🎨",
+      Ofertas: "💰",
+      Terror: "👻",
+      Estrategia: "🧠",
+      Retro: "🕹️",
+      Simulacion: "🏗️",
+      "Sci-Fi": "🚀",
+      Accion: "💥",
+    };
+
+    const icon = iconByCategory[createCategory] ?? "🎮";
+    return `${icon} ${createCategory}`;
+  }, [createCategory]);
 
   const filteredLists = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -492,7 +511,7 @@ export function Lists() {
                 </div>
                 <div
                   className={`h-px flex-1 ${
-                    createStep === 2
+                    createStep >= 2
                       ? "bg-[rgba(0,188,125,0.5)]"
                       : "bg-[#40517b]"
                   }`}
@@ -502,10 +521,12 @@ export function Lists() {
                     className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold ${
                       createStep === 2
                         ? "bg-[#2b7fff] text-white"
-                        : "bg-[#253353] text-[#62748e]"
+                        : createStep === 3
+                          ? "bg-[#00bc7d] text-white"
+                          : "bg-[#253353] text-[#62748e]"
                     }`}
                   >
-                    2
+                    {createStep === 3 ? <Check size={14} /> : "2"}
                   </span>
                   <span
                     className={`font-medium ${
@@ -515,9 +536,27 @@ export function Lists() {
                     Juegos
                   </span>
                 </div>
-                <div className="h-px flex-1 bg-[#2a3554]" />
-                <div className="flex items-center gap-2 text-[#5f6f8f] opacity-40">
-                  <span className="h-5 w-5 rounded-full bg-[#253353] flex items-center justify-center text-[11px] font-semibold">
+                <div
+                  className={`h-px flex-1 ${
+                    createStep === 3
+                      ? "bg-[rgba(0,188,125,0.5)]"
+                      : "bg-[#2a3554]"
+                  }`}
+                />
+                <div
+                  className={`flex items-center gap-2 ${
+                    createStep === 3
+                      ? "text-white"
+                      : "text-[#5f6f8f] opacity-40"
+                  }`}
+                >
+                  <span
+                    className={`h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold ${
+                      createStep === 3
+                        ? "bg-[#2b7fff] text-white"
+                        : "bg-[#253353] text-[#62748e]"
+                    }`}
+                  >
                     3
                   </span>
                   <span>Vista previa</span>
@@ -660,7 +699,7 @@ export function Lists() {
                   </button>
                 </div>
               </>
-            ) : (
+            ) : createStep === 2 ? (
               <>
                 <div className="px-6 py-5 space-y-4">
                   <div>
@@ -770,6 +809,7 @@ export function Lists() {
 
                   <button
                     type="button"
+                    onClick={() => setCreateStep(3)}
                     disabled={!canContinueGames}
                     className={`h-10 px-5 rounded-[14px] text-[14px] font-medium flex items-center gap-2 transition-colors ${
                       canContinueGames
@@ -778,6 +818,95 @@ export function Lists() {
                     }`}
                   >
                     Siguiente <ChevronRight size={14} />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="px-6 py-5">
+                  <div className="flex items-center gap-2 text-[#cad5e2] text-[14px] font-medium mb-3">
+                    <Eye size={14} className="text-[#51a2ff]" />
+                    Vista previa de tu lista
+                  </div>
+
+                  <div className="rounded-[14px] border border-[#1d293d] overflow-hidden bg-[#0f172b]">
+                    <div className="relative h-[144px]">
+                      <img
+                        src={createCover}
+                        alt={createTitle || "Portada de lista"}
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0f172b] via-[rgba(15,23,43,0.4)] to-transparent" />
+
+                      <span className="absolute top-4 right-3 h-5 rounded-full border border-[rgba(43,127,255,0.2)] bg-[rgba(43,127,255,0.15)] px-[9px] text-[10px] font-medium text-[#51a2ff] flex items-center">
+                        {previewCategoryLabel}
+                      </span>
+
+                      <div className="absolute left-4 right-4 bottom-3">
+                        <span className="h-[19px] rounded-full px-2 bg-[rgba(0,188,125,0.9)] text-white text-[10px] font-bold inline-flex items-center mb-2">
+                          TUYA · NUEVA
+                        </span>
+                        <h3 className="text-white text-[24px] leading-7 font-bold truncate">
+                          {createTitle || "Mi nueva lista"}
+                        </h3>
+                        <p className="text-[11px] text-[#cad5e2]">
+                          por <span className="text-[#51a2ff]">Tu</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-4">
+                      <div className="space-y-2">
+                        {createSelectedGames.map((game, index) => (
+                          <div
+                            key={game.id}
+                            className="h-12 rounded-[10px] border border-[#1d293d] bg-[#0c1529] px-2 flex items-center"
+                          >
+                            <span className="w-8 text-[12px] font-bold text-[#45556c] text-center">
+                              #{index + 1}
+                            </span>
+                            <img
+                              src={game.image}
+                              alt={game.title}
+                              className="h-8 w-8 rounded-[8px] object-cover"
+                            />
+                            <span className="ml-3 text-[14px] text-[#cad5e2] flex-1 truncate">
+                              {game.title}
+                            </span>
+                            <span className="text-[10px] text-[#00bc7d] font-medium">
+                              {game.score}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-4 pt-2 border-t border-[#1d293d] flex items-center justify-between">
+                        <span className="text-[12px] text-[#62748e]">
+                          0 likes · 0 comentarios
+                        </span>
+                        <span className="h-[17px] rounded-[4px] bg-[#1d293d] px-2 text-[#62748e] text-[10px] font-medium flex items-center">
+                          {createSelectedGames.length} juegos
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-6 py-4 border-t border-[#1e2c46] bg-[rgba(2,6,24,0.8)] flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setCreateStep(2)}
+                    className="h-9 px-3 rounded-[10px] text-[#90a1b9] text-[14px] flex items-center gap-2 hover:text-white transition-colors"
+                  >
+                    <ChevronLeft size={14} /> Atras
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={closeCreateModal}
+                    className="h-10 px-6 rounded-[14px] bg-[#155dfc] text-white text-[14px] font-medium flex items-center gap-2 hover:bg-[#2b7fff] transition-colors"
+                  >
+                    <Sparkles size={16} /> Publicar Lista
                   </button>
                 </div>
               </>
