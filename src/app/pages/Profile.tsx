@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Navigate, Link } from "react-router";
 import api from "../../lib/api";
@@ -348,10 +348,7 @@ export function Profile() {
   const totalAchievements = profile?.totalAchievements ?? 547;
   const completedGames = profile?.completedGames ?? 10;
 
-  const genreItems = useMemo(
-    () => normalizeGenres(genreData, totalHours),
-    [genreData, totalHours],
-  );
+  const genreItems = normalizeGenres(genreData, totalHours);
 
   const genreTotalHours = genreItems.reduce((sum, item) => sum + item.hours, 0);
   const genreFocus = genreItems[0] || {
