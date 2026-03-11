@@ -24,14 +24,14 @@ export function Lists() {
 
   const filteredLists = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return COMMUNITY_LISTS.filter((item) => {
+    const result = COMMUNITY_LISTS.filter((item) => {
       const matchesTab =
         feedTab === "trending"
           ? !!item.trending
           : feedTab === "new"
             ? !!item.newLabel
             : feedTab === "top"
-              ? item.likes >= 170
+              ? !!item.topVoted
               : !!item.mine;
 
       const matchesCategory =
@@ -46,6 +46,12 @@ export function Lists() {
 
       return matchesTab && matchesCategory && matchesQuery;
     });
+
+    if (feedTab === "top") {
+      return result.sort((a, b) => (a.topOrder ?? 999) - (b.topOrder ?? 999));
+    }
+
+    return result;
   }, [feedTab, query, selectedCategory]);
 
   return (
@@ -153,6 +159,11 @@ export function Lists() {
                     {list.newLabel && (
                       <span className="h-[19px] rounded-full px-2 bg-[rgba(0,188,125,0.9)] text-white text-[10px] font-bold">
                         NUEVA
+                      </span>
+                    )}
+                    {list.ownerLabel && (
+                      <span className="h-[19px] rounded-full px-2 bg-[rgba(43,127,255,0.9)] text-white text-[10px] font-bold">
+                        TUYA
                       </span>
                     )}
                   </div>
