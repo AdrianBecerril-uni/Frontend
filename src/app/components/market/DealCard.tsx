@@ -27,13 +27,18 @@ interface DealCardProps {
 export function DealCard({ deal }: DealCardProps) {
   const savings = Math.round(parseFloat(deal.savings));
   const hasDiscount = savings > 0;
-  
+  const detailPath = `/game/${deal.steamAppID || deal.gameID}`;
+
   return (
     <div className="group relative bg-slate-900 border border-slate-800 rounded-lg overflow-hidden hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300 flex flex-col h-full text-sm">
-      <Link to={`/game/${deal.steamAppID || deal.gameID}`} className="block relative aspect-video overflow-hidden bg-slate-800">
-        <img 
-          src={deal.thumb} 
-          alt={deal.title} 
+      <Link
+        to={detailPath}
+        state={{ deal }}
+        className="block relative aspect-video overflow-hidden bg-slate-800"
+      >
+        <img
+          src={deal.thumb}
+          alt={deal.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
         />
@@ -43,24 +48,27 @@ export function DealCard({ deal }: DealCardProps) {
           </div>
         )}
         {deal.metacriticScore && parseInt(deal.metacriticScore) > 0 && (
-           <div className="absolute bottom-1 left-1 bg-slate-950/80 backdrop-blur text-yellow-400 text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
-             <Star size={10} fill="currentColor" />
-             {deal.metacriticScore}
-           </div>
+          <div className="absolute bottom-1 left-1 bg-slate-950/80 backdrop-blur text-yellow-400 text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
+            <Star size={10} fill="currentColor" />
+            {deal.metacriticScore}
+          </div>
         )}
       </Link>
-      
+
       <div className="p-3 flex flex-col flex-1">
-        <Link to={`/game/${deal.steamAppID || deal.gameID}`}>
-          <h3 className="font-semibold text-slate-100 line-clamp-1 mb-1 hover:text-blue-400 transition-colors text-sm" title={deal.title}>
+        <Link to={detailPath} state={{ deal }}>
+          <h3
+            className="font-semibold text-slate-100 line-clamp-1 mb-1 hover:text-blue-400 transition-colors text-sm"
+            title={deal.title}
+          >
             {deal.title}
           </h3>
         </Link>
-        
+
         <div className="flex items-center gap-2 mb-2">
-           <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
-             Rating: {deal.dealRating}/10
-           </span>
+          <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+            Rating: {deal.dealRating}/10
+          </span>
         </div>
 
         <div className="mt-auto flex items-center justify-between">
@@ -70,18 +78,20 @@ export function DealCard({ deal }: DealCardProps) {
                 ${deal.normalPrice}
               </span>
             )}
-            <span className={`text-base font-bold ${hasDiscount ? 'text-emerald-400' : 'text-slate-200'}`}>
+            <span
+              className={`text-base font-bold ${hasDiscount ? "text-emerald-400" : "text-slate-200"}`}
+            >
               ${deal.salePrice}
             </span>
           </div>
-          
-          <a 
+
+          <a
             href={`https://www.cheapshark.com/redirect?dealID=${deal.dealID}`}
-            target="_blank" 
+            target="_blank"
             rel="noopener noreferrer"
             className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors z-10"
             title="Ver en tienda"
-            onClick={(e) => e.stopPropagation()} 
+            onClick={(e) => e.stopPropagation()}
           >
             <ExternalLink size={14} />
           </a>
