@@ -367,6 +367,8 @@ export function Profile() {
   const isLoadingAchievements = achievementsData === null;
   const hasRareAchievements =
     achievementsData?.rarestAchievementsList?.length > 0;
+  const hasRecentAchievements =
+    achievementsData?.recentAchievementsList?.length > 0;
 
   const getMappedAchievements = (list: any[]) =>
     (list || []).map((ach: any) => ({
@@ -376,14 +378,16 @@ export function Profile() {
       icon: Award,
       cardClass: "bg-[rgba(254,154,0,0.1)] border-[rgba(254,154,0,0.2)]",
       iconClass: "bg-[rgba(254,154,0,0.1)] text-[#ffb900]",
-      percent: ach.globalPercent,
+      percent: ach.globalPercent, // Might be null for recent if fetch failed
     }));
 
   // Intentar usar raros, si no recientes (para handling de usuarios con 0 logros globales o sin datos)
   const realAchievements = getMappedAchievements(
     hasRareAchievements
       ? achievementsData.rarestAchievementsList
-      : achievementsData?.recentAchievementsList || [],
+      : hasRecentAchievements
+        ? achievementsData.recentAchievementsList
+        : [],
   );
 
   // Y si no hay datos de steam, podríamos no mostrar nada o rellenar
@@ -802,7 +806,9 @@ export function Profile() {
           <h3 className="text-white text-[24px] font-bold flex items-center gap-2">
             <Award size={18} className="text-[#ffb900]" />{" "}
             {realAchievements.length > 0
-              ? "Logros Más Destacados"
+              ? hasRareAchievements
+                ? "Logros Más Destacados"
+                : "Logros Recientes"
               : "Logros de Perfil"}
           </h3>
           <span className="bg-[#1d293d] rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.5px] text-[#62748e]">
@@ -833,7 +839,7 @@ export function Profile() {
                 </p>
                 <p className="text-[10px] leading-[15px] text-[#62748e] truncate flex items-center gap-1">
                   {achievement.subtitle}
-                  {achievement.percent && (
+                  {achievement.percent != null && (
                     <span className="text-[#ffb900]">
                       ({achievement.percent}%)
                     </span>
