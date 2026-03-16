@@ -116,73 +116,6 @@ const FALLBACK_ACTIVITY = [
   },
 ];
 
-const FALLBACK_ACHIEVEMENTS = [
-  {
-    title: "Leyenda Veterana",
-    subtitle: "10+ años en Steam",
-    unlocked: true,
-    icon: Award,
-    cardClass: "bg-[rgba(254,154,0,0.1)] border-[rgba(254,154,0,0.2)]",
-    iconClass: "bg-[rgba(254,154,0,0.1)] text-[#ffb900]",
-  },
-  {
-    title: "Guerrero de 5.000h",
-    subtitle: "5.000+ horas jugadas",
-    unlocked: true,
-    icon: Trophy,
-    cardClass: "bg-[rgba(251,44,54,0.1)] border-[rgba(251,44,54,0.2)]",
-    iconClass: "bg-[rgba(251,44,54,0.1)] text-[#fb2c36]",
-  },
-  {
-    title: "Coleccionista",
-    subtitle: "100+ juegos en biblioteca",
-    unlocked: true,
-    icon: Gamepad2,
-    cardClass: "bg-[rgba(43,127,255,0.1)] border-[rgba(43,127,255,0.2)]",
-    iconClass: "bg-[rgba(43,127,255,0.1)] text-[#51a2ff]",
-  },
-  {
-    title: "Perfectionist",
-    subtitle: "10 juegos al 100%",
-    unlocked: true,
-    icon: Target,
-    cardClass: "bg-[rgba(0,188,125,0.1)] border-[rgba(0,188,125,0.2)]",
-    iconClass: "bg-[rgba(0,188,125,0.1)] text-[#00d492]",
-  },
-  {
-    title: "Cazador de Logros",
-    subtitle: "500+ logros desbloqueados",
-    unlocked: true,
-    icon: Sparkles,
-    cardClass: "bg-[rgba(173,70,255,0.1)] border-[rgba(173,70,255,0.2)]",
-    iconClass: "bg-[rgba(173,70,255,0.1)] text-[#ad46ff]",
-  },
-  {
-    title: "Maratonista",
-    subtitle: "Racha de 30+ días",
-    unlocked: true,
-    icon: Zap,
-    cardClass: "bg-[rgba(0,184,219,0.1)] border-[rgba(0,184,219,0.2)]",
-    iconClass: "bg-[rgba(0,184,219,0.1)] text-[#00d3f3]",
-  },
-  {
-    title: "Crítico de Elite",
-    subtitle: "50+ reseñas publicadas",
-    unlocked: false,
-    icon: Sparkles,
-    cardClass: "bg-[rgba(29,41,61,0.22)] border-[rgba(49,65,88,0.35)]",
-    iconClass: "bg-[rgba(29,41,61,0.35)] text-[#45556c]",
-  },
-  {
-    title: "Líder de Squad",
-    subtitle: "Organizar 100 sesiones",
-    unlocked: false,
-    icon: Target,
-    cardClass: "bg-[rgba(29,41,61,0.22)] border-[rgba(49,65,88,0.35)]",
-    iconClass: "bg-[rgba(29,41,61,0.35)] text-[#45556c]",
-  },
-];
-
 function hoursFromMinutes(minutes = 0) {
   return Math.max(0, Math.round(minutes / 60));
 }
@@ -371,15 +304,24 @@ export function Profile() {
     achievementsData?.recentAchievementsList?.length > 0;
 
   const getMappedAchievements = (list: any[]) =>
-    (list || []).map((ach: any) => ({
-      title: ach.name,
-      subtitle: ach.game,
-      unlocked: true,
-      icon: Award,
-      cardClass: "bg-[rgba(254,154,0,0.1)] border-[rgba(254,154,0,0.2)]",
-      iconClass: "bg-[rgba(254,154,0,0.1)] text-[#ffb900]",
-      percent: ach.globalPercent, // Might be null for recent if fetch failed
-    }));
+    (list || []).map((ach: any) => {
+      // Si el logro no estÃ¡ desbloqueado (ahora podemos recibir logros normales/bloqueados del backend)
+      const isUnlocked = ach.unlocked !== false; // Si no viene explÃcitamente como false, lo asumimos desbloqueado
+
+      return {
+        title: ach.name,
+        subtitle: ach.game,
+        unlocked: isUnlocked,
+        icon: isUnlocked ? Award : Zap,
+        cardClass: isUnlocked
+          ? "bg-[rgba(254,154,0,0.1)] border-[rgba(254,154,0,0.2)]"
+          : "bg-[#162032] border-[#1d293d] opacity-60",
+        iconClass: isUnlocked
+          ? "bg-[rgba(254,154,0,0.1)] text-[#ffb900]"
+          : "bg-transparent text-[#45556c]",
+        percent: ach.globalPercent,
+      };
+    });
 
   // Intentar usar raros, si no recientes (para handling de usuarios con 0 logros globales o sin datos)
   const realAchievements = getMappedAchievements(
@@ -406,64 +348,15 @@ export function Profile() {
   } else if (realAchievements.length > 0) {
     displayAchievements = realAchievements;
   } else {
-    // Falls back to static UI components if zero achievements exists
-    const actualYearsActive = new Date().getFullYear() - memberYear;
+    // Show completely empty state
     displayAchievements = [
       {
-        title: "Leyenda Veterana",
-        subtitle: "10+ años en Steam",
-        unlocked: actualYearsActive >= 10,
-        icon: Award,
-        cardClass:
-          actualYearsActive >= 10
-            ? "bg-[rgba(254,154,0,0.1)] border-[rgba(254,154,0,0.2)]"
-            : "bg-[#162032] border-[#1d293d] opacity-60",
-        iconClass:
-          actualYearsActive >= 10
-            ? "bg-[rgba(254,154,0,0.1)] text-[#ffb900]"
-            : "bg-transparent text-[#45556c]",
-      },
-      {
-        title: "Guerrero de 5.000h",
-        subtitle: "5.000+ horas jugadas",
-        unlocked: totalHours >= 5000,
-        icon: Trophy,
-        cardClass:
-          totalHours >= 5000
-            ? "bg-[rgba(251,44,54,0.1)] border-[rgba(251,44,54,0.2)]"
-            : "bg-[#162032] border-[#1d293d] opacity-60",
-        iconClass:
-          totalHours >= 5000
-            ? "bg-[rgba(251,44,54,0.1)] text-[#fb2c36]"
-            : "bg-transparent text-[#45556c]",
-      },
-      {
-        title: "Coleccionista",
-        subtitle: "10+ juegos en biblioteca",
-        unlocked: sourceGames.length >= 10,
-        icon: Gamepad2,
-        cardClass:
-          sourceGames.length >= 10
-            ? "bg-[rgba(43,127,255,0.1)] border-[rgba(43,127,255,0.2)]"
-            : "bg-[#162032] border-[#1d293d] opacity-60",
-        iconClass:
-          sourceGames.length >= 10
-            ? "bg-[rgba(43,127,255,0.1)] text-[#51a2ff]"
-            : "bg-transparent text-[#45556c]",
-      },
-      {
-        title: "Nivel de Élite",
-        subtitle: "Nivel 20+ en Steam",
-        unlocked: level >= 20,
-        icon: Target,
-        cardClass:
-          level >= 20
-            ? "bg-[rgba(0,188,125,0.1)] border-[rgba(0,188,125,0.2)]"
-            : "bg-[#162032] border-[#1d293d] opacity-60",
-        iconClass:
-          level >= 20
-            ? "bg-[rgba(0,188,125,0.1)] text-[#00d492]"
-            : "bg-transparent text-[#45556c]",
+        title: "Sin logros",
+        subtitle: "A�n no hay logros conseguidos",
+        unlocked: false,
+        icon: Zap,
+        cardClass: "bg-[#162032] border-[#1d293d] opacity-60",
+        iconClass: "bg-transparent text-[#45556c]",
       },
     ];
   }
