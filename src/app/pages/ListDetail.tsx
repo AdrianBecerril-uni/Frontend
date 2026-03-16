@@ -196,7 +196,11 @@ export function ListDetail() {
 
             <button
               type="button"
-              className="inline-flex items-center gap-2 text-[#90a1b9] text-[16px]"
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href);
+                alert("!Enlace copiado al portapapeles!");
+              }}
+              className="inline-flex items-center gap-2 text-[#90a1b9] text-[16px] hover:text-white transition-colors"
             >
               <Share2 size={20} /> Compartir
             </button>

@@ -150,7 +150,7 @@ export function Lists() {
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
   const [createTitle, setCreateTitle] = useState("");
   const [createDescription, setCreateDescription] = useState("");
-  const [createCategory, setCreateCategory] = useState("RPG");
+  const [createCategories, setCreateCategories] = useState<string[]>(["RPG"]);
   const [createCover, setCreateCover] = useState(
     () => "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=800"
   );
@@ -185,7 +185,7 @@ export function Lists() {
             year: "-",
             price: item.price,
             score: "-",
-            image: item.tinyImage
+            image: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${item.appId}/header.jpg`
           }));
           setSearchGamesOptions(results);
         } catch (err) {
@@ -220,7 +220,7 @@ export function Lists() {
   const canContinueInfo =
     createTitle.trim().length > 0 &&
     createDescription.trim().length > 0 &&
-    createCategory.length > 0 &&
+    createCategories.length > 0 &&
     createCover.length > 0;
   const canContinueGames = createSelectedGames.length > 0;
 
@@ -238,7 +238,7 @@ export function Lists() {
       const payload = {
         title: createTitle,
         description: createDescription,
-        categories: [createCategory],
+        categories: createCategories,
         coverImage: createCover,
         games: createSelectedGames.map((g, index) => ({
           appId: parseInt(g.id, 10) || index + 1, 
@@ -327,9 +327,12 @@ export function Lists() {
       Accion: "💥",
     };
 
-    const icon = iconByCategory[createCategory] ?? "🎮";
-    return `${icon} ${createCategory}`;
-  }, [createCategory]);
+    if (createCategories.length === 0) return "Sin Categoría";
+    const primary = createCategories[0];
+    const icon = iconByCategory[primary] ?? "🎮";
+    const extra = createCategories.length > 1 ? ` +${createCategories.length - 1}` : "";
+    return `${icon} ${primary}${extra}`;
+  }, [createCategories]);
 
   const filteredLists = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -523,7 +526,7 @@ export function Lists() {
                         <Heart size={13} /> {list.likes?.length || 0}
                       </span>
                       <span className="flex items-center gap-1">
-                        <MessageSquare size={13} /> 0
+                        <MessageSquare size={13} /> {list.commentsCount || 0}
                       </span>
                     </div>
                     <span className="h-[17px] rounded-[4px] bg-[#1d293d] px-2 text-[#62748e] text-[10px] font-medium flex items-center">
@@ -715,12 +718,18 @@ export function Lists() {
                     </p>
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                       {createCategoryOptions.map((option) => {
-                        const active = createCategory === option;
+                        const active = createCategories.includes(option);
                         return (
                           <button
                             key={option}
                             type="button"
-                            onClick={() => setCreateCategory(option)}
+                            onClick={() => {
+                              setCreateCategories((prev) =>
+                                prev.includes(option)
+                                  ? prev.filter((c) => c !== option)
+                                  : [...prev, option]
+                              );
+                            }}
                             className={`h-[50px] rounded-[10px] border text-[12px] transition-colors ${
                               active
                                 ? "bg-[#1a3770] border-[#2b7fff] text-white"
@@ -738,7 +747,26 @@ export function Lists() {
                     <p className="mb-2 text-[14px] text-[#cad5e2] font-medium">
                       Portada
                     </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                      <label className="relative h-[88px] rounded-[10px] overflow-hidden border border-[#2f405e] hover:border-[#4766a3] transition-colors flex flex-col items-center justify-center cursor-pointer bg-[#0f172a]">
+                        <Plus size={20} className="text-[#a7b6cd] mb-1" />
+                        <span className="text-[#a7b6cd] text-[12px] font-medium">Subir foto</span>
+                        <input
+                          type="file"
+                          accept="image/png, image/jpeg"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setCreateCover(reader.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
                       {createCoverOptions.map((cover) => {
                         const active = createCover === cover.image;
                         return (

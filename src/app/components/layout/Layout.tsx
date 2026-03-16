@@ -220,7 +220,7 @@ export function Layout() {
       <main className="flex-1 md:ml-64 w-full pt-20 md:pt-0 p-4 md:p-8 overflow-x-hidden">
         <div
           className={cn(
-            "max-w-7xl mx-auto",
+            "w-full",
             location.pathname !== "/login" &&
               location.pathname !== "/" &&
               "mt-6",
