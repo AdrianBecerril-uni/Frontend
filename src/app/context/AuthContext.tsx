@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import api from '../../lib/api';
 
 export interface User {
+    id: string;
     steamid: string;
     personaname: string;
     avatarfull: string;
@@ -30,10 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const params = new URLSearchParams(window.location.search);
         const steamId = params.get('steamId');
         const token = params.get('token');
+        const userId = params.get('id');
 
         if (steamId && token) {
             // Steam callback — extract user data from URL params
             const userData: User = {
+                id: userId || '',
                 steamid: steamId,
                 personaname: params.get('username') || 'Steam User',
                 avatarfull: params.get('avatar') || '',
@@ -74,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const res = await api.get('/api/auth/me');
                 if (res.data?.user) {
                     const userData: User = {
+                        id: res.data.user.id,
                         steamid: res.data.user.steamId,
                         personaname: res.data.user.username,
                         avatarfull: res.data.user.avatar,

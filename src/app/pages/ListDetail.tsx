@@ -261,8 +261,8 @@ export function ListDetail() {
           ) : (
             <form onSubmit={handlePostComment} className="flex gap-4 mb-8">
               <img
-                src={user.avatar}
-                alt={user.username}
+                src={user.avatarfull}
+                alt={user.personaname}
                 className="w-10 h-10 rounded-full object-cover ring-2 ring-[#1d293d] shrink-0"
               />
               <div className="flex-1">
