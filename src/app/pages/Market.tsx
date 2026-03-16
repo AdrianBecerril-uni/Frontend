@@ -32,6 +32,9 @@ export function Market() {
   const [sortBy, setSortBy] = useState("rating-desc");
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [isPriceDropdownOpen, setIsPriceDropdownOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Check if we should show the "Locked" state for recommendations
@@ -62,84 +65,134 @@ export function Market() {
     }
   }, [isPriceDropdownOpen]);
 
-  const fetchDeals = async () => {
-    setLoading(true);
-    try {
-      const params: any = {
-        storeID: "1", // Steam
-        upperPrice: maxPrice,
-        pageSize: 60, // Limit results
-      };
-      
-      if (searchTerm) {
-        params.title = searchTerm;
-      }
-      
-      // Map sort values to API parameters (API only supports ascending for these)
-      if (sortBy.startsWith("price")) {
-        params.sortBy = "Price";
-      } else if (sortBy.startsWith("savings")) {
-        params.sortBy = "Savings";
-      } else if (sortBy.startsWith("rating")) {
-        params.sortBy = "Deal Rating";
-      } else if (sortBy.startsWith("release")) {
-        params.sortBy = "Release";
-      }
+const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
+    if (!isLoadMore) {
+      setLoading(true);
+      setPage(0);
+      setHasMore(true);
+    } else {
+      setIsLoadingMore(true);
+    }
 
-      const response = await axios.get("https://www.cheapshark.com/api/1.0/deals", {
-        params
-      });
-      
-      let fetchedDeals = response.data;
-      
-      // Apply local sorting for descending orders (API returns ascending by default)
-      // Note: For some sorts, the API already returns in the right order
-      if (sortBy === "price-asc") {
-        // API returns ascending by default when sortBy=Price, but let's ensure it
-        fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) => 
-          parseFloat(a.salePrice) - parseFloat(b.salePrice)
-        );
-      } else if (sortBy === "price-desc") {
-        fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) => 
-          parseFloat(b.salePrice) - parseFloat(a.salePrice)
-        );
-      } else if (sortBy === "rating-asc") {
-        fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) => 
-          parseFloat(a.dealRating) - parseFloat(b.dealRating)
-        );
-      } else if (sortBy === "savings-asc") {
-        fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) => 
-          parseFloat(a.savings) - parseFloat(b.savings)
-        );
-      } else if (sortBy === "savings-desc") {
-        fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) => 
-          parseFloat(b.savings) - parseFloat(a.savings)
-        );
-      } else if (sortBy === "release-asc") {
-        fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) => 
-          a.releaseDate - b.releaseDate
-        );
-      } else if (sortBy === "release-desc") {
-        fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) => 
-          b.releaseDate - a.releaseDate
-        );
+    try {
+      if (searchTerm) {
+        // Fetch specific game (not necessarily on sale) using /games endpoint
+        const response = await axios.get("https://www.cheapshark.com/api/1.0/games", {
+          params: { title: searchTerm, exact: 0 }
+        });
+        
+        // Convert games format to match deals format
+        let fetchedGames = response.data.map((game: any) => ({
+          dealID: game.cheapestDealID,
+          dealRating: "0",
+          gameID: game.gameID,
+          internalName: game.internalName,
+          isOnSale: game.cheapest < 100 ? "1" : "0", // Rough estimation if no direct data
+          lastChange: 0,
+          normalPrice: "0", // the games endpoint doesn't return normal price reliably
+          releaseDate: 0,
+          salePrice: game.cheapest,
+          savings: "0",
+          steamAppID: game.steamAppID,
+          steamRatingCount: "0",
+          steamRatingPercent: "0",
+          steamRatingText: null,
+          storeID: "1",
+          thumb: game.thumb,
+          title: game.external
+        }));
+
+        setDeals(fetchedGames);
+        setHasMore(false); // Game search doesn't paginate the same way
+      } else {
+        const params: any = {
+          storeID: "1", // Steam
+          upperPrice: maxPrice,
+          pageSize: 60, // Limit results
+          pageNumber: pageNumber // Add page number for pagination
+        };
+
+        // Map sort values to API parameters (API only supports ascending for these)
+        if (sortBy.startsWith("price")) {
+          params.sortBy = "Price";
+        } else if (sortBy.startsWith("savings")) {
+          params.sortBy = "Savings";
+        } else if (sortBy.startsWith("rating")) {
+          params.sortBy = "Deal Rating";
+        } else if (sortBy.startsWith("release")) {
+          params.sortBy = "Release";
+        }
+
+        const response = await axios.get("https://www.cheapshark.com/api/1.0/deals", {
+          params
+        });
+
+        let fetchedDeals = response.data;
+        
+        if (fetchedDeals.length < 60) {
+          setHasMore(false);
+        }
+
+        // Apply local sorting for descending orders (API returns ascending by default)
+        // Note: For some sorts, the API already returns in the right order
+        if (sortBy === "price-asc") {
+          // API returns ascending by default when sortBy=Price, but let's ensure it
+          fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) =>
+            parseFloat(a.salePrice) - parseFloat(b.salePrice)
+          );
+        } else if (sortBy === "price-desc") {
+          fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) =>
+            parseFloat(b.salePrice) - parseFloat(a.salePrice)
+          );
+        } else if (sortBy === "rating-asc") {
+          fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) =>
+            parseFloat(a.dealRating) - parseFloat(b.dealRating)
+          );
+        } else if (sortBy === "savings-asc") {
+          fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) =>
+            parseFloat(a.savings) - parseFloat(b.savings)
+          );
+        } else if (sortBy === "savings-desc") {
+          fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) =>
+            parseFloat(b.savings) - parseFloat(a.savings)
+          );
+        } else if (sortBy === "release-asc") {
+          fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) =>
+            a.releaseDate - b.releaseDate
+          );
+        } else if (sortBy === "release-desc") {
+          fetchedDeals = [...fetchedDeals].sort((a: Deal, b: Deal) =>
+            b.releaseDate - a.releaseDate
+          );
+        }
+
+        if (isLoadMore) {
+          setDeals((prev) => [...prev, ...fetchedDeals]);
+        } else {
+          setDeals(fetchedDeals);
+        }
       }
-      
-      setDeals(fetchedDeals);
     } catch (error) {
       console.error("Error fetching deals:", error);
       toast.error("Error al cargar las ofertas. Inténtalo de nuevo.");
     } finally {
       setLoading(false);
+      setIsLoadingMore(false);
     }
   };
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      fetchDeals();
+      fetchDeals(0, false);
     }, 500); // Debounce search
     return () => clearTimeout(timeoutId);
   }, [searchTerm, maxPrice, sortBy]);
+
+  const loadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchDeals(nextPage, true);
+  };
 
   // Apply genre and price filters locally
   useEffect(() => {
@@ -432,11 +485,24 @@ export function Market() {
       ) : (
         <>
           {filteredDeals.length > 0 ? (
-             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {filteredDeals.map((deal) => (
-                <DealCard key={deal.dealID} deal={deal} />
-              ))}
-            </div>
+             <>
+               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {filteredDeals.map((deal) => (
+                    <DealCard key={deal.dealID} deal={deal} />
+                  ))}
+                </div>
+                {hasMore && !searchTerm && (
+                  <div className="flex justify-center mt-8">
+                    <button
+                      onClick={loadMore}
+                      disabled={isLoadingMore}
+                      className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                    >
+                      {isLoadingMore ? "Cargando..." : "Cargar más"}
+                    </button>
+                  </div>
+                )}
+             </>
           ) : (
             <div className="text-center py-20 text-slate-500">
               <p className="text-xl">No se encontraron ofertas con estos criterios.</p>

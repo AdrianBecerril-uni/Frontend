@@ -37,7 +37,7 @@ export function DealCard({ deal }: DealCardProps) {
         className="block relative aspect-video overflow-hidden bg-slate-800"
       >
         <img
-          src={deal.thumb}
+          src={deal.steamAppID ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${deal.steamAppID}/header.jpg` : deal.thumb}
           alt={deal.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
