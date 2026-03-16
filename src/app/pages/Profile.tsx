@@ -300,8 +300,11 @@ export function Profile() {
         // Fetch achievements lazily (takes longer)
         api
           .get(`/api/steam/stats/achievements/${user.steamid}`)
-          .then((res) => setAchievementsData(res.data))
-          .catch((err) => console.error("Error loading achievements:", err));
+          .then((res) => setAchievementsData(res.data || { empty: true }))
+          .catch((err) => {
+            console.error("Error loading achievements:", err);
+            setAchievementsData({ error: true });
+          });
       } catch (error) {
         console.error("Error loading profile:", error);
         setLoading(false);
@@ -361,8 +364,12 @@ export function Profile() {
 
   // Mostramos los logros reales más raros conseguidos por el jugador
   // O un pequeño fallback vacío mientras cargan
-  const realAchievements = (achievementsData?.rarestAchievementsList || []).map(
-    (ach: any, idx: number) => ({
+  const isLoadingAchievements = achievementsData === null;
+  const hasRareAchievements =
+    achievementsData?.rarestAchievementsList?.length > 0;
+
+  const getMappedAchievements = (list: any[]) =>
+    (list || []).map((ach: any) => ({
       title: ach.name,
       subtitle: ach.game,
       unlocked: true,
@@ -370,23 +377,92 @@ export function Profile() {
       cardClass: "bg-[rgba(254,154,0,0.1)] border-[rgba(254,154,0,0.2)]",
       iconClass: "bg-[rgba(254,154,0,0.1)] text-[#ffb900]",
       percent: ach.globalPercent,
-    }),
+    }));
+
+  // Intentar usar raros, si no recientes (para handling de usuarios con 0 logros globales o sin datos)
+  const realAchievements = getMappedAchievements(
+    hasRareAchievements
+      ? achievementsData.rarestAchievementsList
+      : achievementsData?.recentAchievementsList || [],
   );
 
   // Y si no hay datos de steam, podríamos no mostrar nada o rellenar
-  const displayAchievements =
-    realAchievements.length > 0
-      ? realAchievements
-      : [
-          {
-            title: "Cargando logros...",
-            subtitle: "Examinando juegos...",
-            unlocked: false,
-            icon: Zap,
-            cardClass: "bg-[#162032] border-[#1d293d] opacity-60",
-            iconClass: "bg-transparent text-[#45556c]",
-          },
-        ];
+  let displayAchievements = [];
+  if (isLoadingAchievements) {
+    displayAchievements = [
+      {
+        title: "Cargando logros...",
+        subtitle: "Examinando juegos...",
+        unlocked: false,
+        icon: Zap,
+        cardClass: "bg-[#162032] border-[#1d293d] opacity-60",
+        iconClass: "bg-transparent text-[#45556c]",
+      },
+    ];
+  } else if (realAchievements.length > 0) {
+    displayAchievements = realAchievements;
+  } else {
+    // Falls back to static UI components if zero achievements exists
+    const actualYearsActive = new Date().getFullYear() - memberYear;
+    displayAchievements = [
+      {
+        title: "Leyenda Veterana",
+        subtitle: "10+ años en Steam",
+        unlocked: actualYearsActive >= 10,
+        icon: Award,
+        cardClass:
+          actualYearsActive >= 10
+            ? "bg-[rgba(254,154,0,0.1)] border-[rgba(254,154,0,0.2)]"
+            : "bg-[#162032] border-[#1d293d] opacity-60",
+        iconClass:
+          actualYearsActive >= 10
+            ? "bg-[rgba(254,154,0,0.1)] text-[#ffb900]"
+            : "bg-transparent text-[#45556c]",
+      },
+      {
+        title: "Guerrero de 5.000h",
+        subtitle: "5.000+ horas jugadas",
+        unlocked: totalHours >= 5000,
+        icon: Trophy,
+        cardClass:
+          totalHours >= 5000
+            ? "bg-[rgba(251,44,54,0.1)] border-[rgba(251,44,54,0.2)]"
+            : "bg-[#162032] border-[#1d293d] opacity-60",
+        iconClass:
+          totalHours >= 5000
+            ? "bg-[rgba(251,44,54,0.1)] text-[#fb2c36]"
+            : "bg-transparent text-[#45556c]",
+      },
+      {
+        title: "Coleccionista",
+        subtitle: "10+ juegos en biblioteca",
+        unlocked: sourceGames.length >= 10,
+        icon: Gamepad2,
+        cardClass:
+          sourceGames.length >= 10
+            ? "bg-[rgba(43,127,255,0.1)] border-[rgba(43,127,255,0.2)]"
+            : "bg-[#162032] border-[#1d293d] opacity-60",
+        iconClass:
+          sourceGames.length >= 10
+            ? "bg-[rgba(43,127,255,0.1)] text-[#51a2ff]"
+            : "bg-transparent text-[#45556c]",
+      },
+      {
+        title: "Nivel de Élite",
+        subtitle: "Nivel 20+ en Steam",
+        unlocked: level >= 20,
+        icon: Target,
+        cardClass:
+          level >= 20
+            ? "bg-[rgba(0,188,125,0.1)] border-[rgba(0,188,125,0.2)]"
+            : "bg-[#162032] border-[#1d293d] opacity-60",
+        iconClass:
+          level >= 20
+            ? "bg-[rgba(0,188,125,0.1)] text-[#00d492]"
+            : "bg-transparent text-[#45556c]",
+      },
+    ];
+  }
 
   const genreItems = normalizeGenres(genreData, totalHours);
 
@@ -724,12 +800,17 @@ export function Profile() {
       <section className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[16px] px-5 py-5 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-white text-[24px] font-bold flex items-center gap-2">
-            <Award size={18} className="text-[#ffb900]" /> Logros Más Raros
+            <Award size={18} className="text-[#ffb900]" />{" "}
+            {realAchievements.length > 0
+              ? "Logros Más Destacados"
+              : "Logros de Perfil"}
           </h3>
           <span className="bg-[#1d293d] rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.5px] text-[#62748e]">
-            {realAchievements.length > 0
-              ? `${realAchievements.length} LOGROS`
-              : "CARGANDO..."}
+            {isLoadingAchievements
+              ? "CARGANDO..."
+              : displayAchievements.length > 0
+                ? `${displayAchievements.filter((a: any) => a.unlocked).length}/${displayAchievements.length} LOGROS`
+                : "0 LOGROS"}
           </span>
         </div>
 
