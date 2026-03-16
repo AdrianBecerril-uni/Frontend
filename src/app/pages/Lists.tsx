@@ -23,6 +23,7 @@ import {
   FEED_TABS,
   FeedTab,
 } from "../data/communityLists";
+import api from "../../lib/api";
 
 type CreateGameOption = {
   id: string;
@@ -177,6 +178,36 @@ export function Lists() {
     setIsCreateModalOpen(false);
     setCreateStep(1);
     setCreateGameQuery("");
+  };
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const submitList = async () => {
+    try {
+      setIsSubmitting(true);
+      const payload = {
+        title: createTitle,
+        description: createDescription,
+        categories: [createCategory],
+        coverImage: createCover,
+        games: createSelectedGames.map((g, index) => ({
+          appId: index + 1, // Fallback dummy appId since we don't have Steam AppId easily accessible in this dummy list
+          name: g.title,
+          imageUrl: g.image
+        }))
+      };
+      
+      const res = await api.post('/api/lists', payload);
+      console.log('List created successfully:', res.data);
+      
+      closeCreateModal();
+      // Optionally reload lists here if you fetch them from backend
+    } catch (err) {
+      console.error('Error creating list:', err);
+      alert('Error creating list. Check compiler/database logs.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const addGameToSelection = (game: CreateGameOption) => {
@@ -903,10 +934,11 @@ export function Lists() {
 
                   <button
                     type="button"
-                    onClick={closeCreateModal}
-                    className="h-10 px-6 rounded-[14px] bg-[#155dfc] text-white text-[14px] font-medium flex items-center gap-2 hover:bg-[#2b7fff] transition-colors"
+                    onClick={submitList}
+                    disabled={isSubmitting}
+                    className="h-10 px-6 rounded-[14px] bg-[#155dfc] text-white text-[14px] font-medium flex items-center gap-2 hover:bg-[#2b7fff] transition-colors disabled:opacity-50"
                   >
-                    <Sparkles size={16} /> Publicar Lista
+                    <Sparkles size={16} /> {isSubmitting ? 'Publicando...' : 'Publicar Lista'}
                   </button>
                 </div>
               </>
