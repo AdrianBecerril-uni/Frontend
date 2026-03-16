@@ -273,6 +273,7 @@ export function Profile() {
   const [games, setGames] = useState<Game[]>([]);
   const [recentGames, setRecentGames] = useState<RecentGame[]>([]);
   const [genreData, setGenreData] = useState<any>(null);
+  const [achievementsData, setAchievementsData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>("top");
 
@@ -294,9 +295,15 @@ export function Profile() {
         setGames(gamesRes.data?.games || []);
         setRecentGames(recentRes.data?.games || []);
         setGenreData(genresRes?.data || null);
+        setLoading(false);
+
+        // Fetch achievements lazily (takes longer)
+        api
+          .get(`/api/steam/stats/achievements/${user.steamid}`)
+          .then((res) => setAchievementsData(res.data))
+          .catch((err) => console.error("Error loading achievements:", err));
       } catch (error) {
         console.error("Error loading profile:", error);
-      } finally {
         setLoading(false);
       }
     };
@@ -317,12 +324,13 @@ export function Profile() {
     );
   }
 
-  const sourceGames = games.length > 0 ? games : FALLBACK_LIBRARY;
+  const sourceGames = games;
   const totalHours = sourceGames.reduce(
     (acc, game) => acc + hoursFromMinutes(game.playtime),
     0,
   );
   const topGames = [...sourceGames]
+    .filter((g) => g.playtime > 0)
     .sort((a, b) => (b.playtime || 0) - (a.playtime || 0))
     .slice(0, 5);
 
@@ -345,8 +353,40 @@ export function Profile() {
           Math.max(365, (new Date().getFullYear() - memberYear + 1) * 365),
       ),
     );
-  const totalAchievements = profile?.totalAchievements ?? 0;
-  const completedGames = profile?.completedGames ?? 0;
+  // Reemplazar la cuenta por la cuenta real si está disponible
+  const totalAchievements =
+    achievementsData?.totalAchievements ?? profile?.totalAchievements ?? 0;
+  const completedGames =
+    achievementsData?.perfectGames ?? profile?.completedGames ?? 0;
+
+  // Mostramos los logros reales más raros conseguidos por el jugador
+  // O un pequeño fallback vacío mientras cargan
+  const realAchievements = (achievementsData?.rarestAchievementsList || []).map(
+    (ach: any, idx: number) => ({
+      title: ach.name,
+      subtitle: ach.game,
+      unlocked: true,
+      icon: Award,
+      cardClass: "bg-[rgba(254,154,0,0.1)] border-[rgba(254,154,0,0.2)]",
+      iconClass: "bg-[rgba(254,154,0,0.1)] text-[#ffb900]",
+      percent: ach.globalPercent,
+    }),
+  );
+
+  // Y si no hay datos de steam, podríamos no mostrar nada o rellenar
+  const displayAchievements =
+    realAchievements.length > 0
+      ? realAchievements
+      : [
+          {
+            title: "Cargando logros...",
+            subtitle: "Examinando juegos...",
+            unlocked: false,
+            icon: Zap,
+            cardClass: "bg-[#162032] border-[#1d293d] opacity-60",
+            iconClass: "bg-transparent text-[#45556c]",
+          },
+        ];
 
   const genreItems = normalizeGenres(genreData, totalHours);
 
@@ -407,21 +447,15 @@ export function Profile() {
       .slice(0, 12);
   })();
 
-  const recentActivity =
-    recentGames.length > 0
-      ? recentGames.slice(0, 5).map((r, index) => ({
-          name: r.name,
-          action:
-            r.playtime2Weeks && r.playtime2Weeks > 0
-              ? `Jugó ${(r.playtime2Weeks / 60).toFixed(1)}h`
-              : `Jugó ${Math.max(1, Math.round((r.playtimeForever || 0) / 60))}h`,
-          when: relativeLabel(
-            r.lastPlayed,
-            index === 0 ? "Hace 2h" : "Reciente",
-          ),
-          tone: "play" as const,
-        }))
-      : FALLBACK_ACTIVITY;
+  const recentActivity = recentGames.slice(0, 5).map((r, index) => ({
+    name: r.name,
+    action:
+      r.playtime2Weeks && r.playtime2Weeks > 0
+        ? `Jugó ${(r.playtime2Weeks / 60).toFixed(1)}h`
+        : `Jugó ${Math.max(1, Math.round((r.playtimeForever || 0) / 60))}h`,
+    when: relativeLabel(r.lastPlayed, index === 0 ? "Hace 2h" : "Reciente"),
+    tone: "play" as const,
+  }));
 
   const stats = [
     {
@@ -690,18 +724,19 @@ export function Profile() {
       <section className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[16px] px-5 py-5 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-white text-[24px] font-bold flex items-center gap-2">
-            <Award size={18} className="text-[#ffb900]" /> Logros de Perfil
+            <Award size={18} className="text-[#ffb900]" /> Logros Más Raros
           </h3>
           <span className="bg-[#1d293d] rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.5px] text-[#62748e]">
-            {FALLBACK_ACHIEVEMENTS.filter((a) => a.unlocked).length}/
-            {FALLBACK_ACHIEVEMENTS.length}
+            {realAchievements.length > 0
+              ? `${realAchievements.length} LOGROS`
+              : "CARGANDO..."}
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
-          {FALLBACK_ACHIEVEMENTS.map((achievement) => (
+          {displayAchievements.map((achievement: any, i: number) => (
             <article
-              key={achievement.title}
+              key={`${achievement.title}-${i}`}
               className={`h-[53px] rounded-[14px] border px-[13px] flex items-center gap-3 ${achievement.cardClass}`}
             >
               <div
@@ -715,8 +750,13 @@ export function Profile() {
                 >
                   {achievement.title}
                 </p>
-                <p className="text-[10px] leading-[15px] text-[#62748e] truncate">
+                <p className="text-[10px] leading-[15px] text-[#62748e] truncate flex items-center gap-1">
                   {achievement.subtitle}
+                  {achievement.percent && (
+                    <span className="text-[#ffb900]">
+                      ({achievement.percent}%)
+                    </span>
+                  )}
                 </p>
               </div>
               {achievement.unlocked && (
