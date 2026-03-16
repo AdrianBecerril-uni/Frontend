@@ -333,8 +333,18 @@ export function Lists() {
 
   const filteredLists = useMemo(() => {
     const q = query.trim().toLowerCase();
+    
+    // Get current user robustly to prevent json parse errors
+    const currentUserStr = localStorage.getItem('steamates_user');
+    let currentUser = null;
+    try {
+      if (currentUserStr) currentUser = JSON.parse(currentUserStr);
+    } catch (e) {
+      console.error(e);
+    }
+
     const result = lists.filter((item) => {
-      const isMine = item.author?.steamId === localStorage.getItem('steamates_user') ? JSON.parse(localStorage.getItem('steamates_user')!).steamid === item.author?.steamId : false;
+      const isMine = currentUser ? currentUser.steamid === item.author?.steamId : false;
       
       const matchesTab =
         feedTab === "trending"
@@ -475,7 +485,11 @@ export function Lists() {
 
                   <div className="absolute top-3 left-3 flex items-center gap-1.5">
                     {/* Add logic to calculate if it's new later based on date */}
-                    {(localStorage.getItem('steamates_user') && JSON.parse(localStorage.getItem('steamates_user')!).steamid === list.author?.steamId) && (
+                    {(localStorage.getItem('steamates_user') && (() => {
+                      try {
+                        return JSON.parse(localStorage.getItem('steamates_user')!).steamid === list.author?.steamId;
+                      } catch { return false; }
+                    })()) && (
                       <span className="h-[19px] rounded-full px-2 bg-[rgba(43,127,255,0.9)] text-white text-[10px] font-bold">
                         TUYA
                       </span>
