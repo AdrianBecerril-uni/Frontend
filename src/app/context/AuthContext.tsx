@@ -19,6 +19,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'steamates_user';
+const TOKEN_KEY = 'steamates_token';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
@@ -28,8 +29,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 1. Check if we're returning from Steam login (URL has steamId param)
         const params = new URLSearchParams(window.location.search);
         const steamId = params.get('steamId');
+        const token = params.get('token');
 
-        if (steamId) {
+        if (steamId && token) {
             // Steam callback — extract user data from URL params
             const userData: User = {
                 steamid: steamId,
@@ -39,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             };
             setUser(userData);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+            localStorage.setItem(TOKEN_KEY, token); // <-- Guardamos el Token
             setLoading(false);
 
             // Clean the URL (remove query params)
@@ -48,21 +51,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // 2. Check localStorage for persisted session
         const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
+        const storedToken = localStorage.getItem(TOKEN_KEY);
+        
+        if (storedToken && stored) {
             try {
                 const parsed = JSON.parse(stored);
                 if (parsed.steamid) {
                     setUser(parsed);
-                    setLoading(false);
-                    return;
                 }
             } catch {
                 localStorage.removeItem(STORAGE_KEY);
             }
         }
 
-        // 3. Fallback: try the backend session (works when same-origin)
+        // 3. Fallback: verify the token validity with the backend
         const checkAuth = async () => {
+            if (!localStorage.getItem(TOKEN_KEY)) {
+                setLoading(false);
+                return;
+            }
             try {
                 const res = await api.get('/api/auth/me');
                 if (res.data?.user) {
@@ -77,7 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
                 }
             } catch {
-                // Not authenticated
+                // If it crashes (token expired or invalid)
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(TOKEN_KEY);
+                setUser(null);
             } finally {
                 setLoading(false);
             }
@@ -92,12 +102,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const logout = async () => {
         try {
-            await api.get('/api/auth/logout');
+            await api.post('/api/auth/logout');
         } catch {
             // ignore
         }
         setUser(null);
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(TOKEN_KEY);
         window.location.href = '/login';
     };
 

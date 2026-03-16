@@ -10,4 +10,13 @@ const api = axios.create({
   },
 });
 
+// Interceptor to automatically add JWT Token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('steamates_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 export default api;
