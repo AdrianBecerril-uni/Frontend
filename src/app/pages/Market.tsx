@@ -4,20 +4,22 @@ import { Search, Filter, ArrowUpDown, Lock, Gamepad2, Car, Sword, Crosshair, Zap
 import { DealCard, Deal } from "../components/market/DealCard";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import { CATEGORY_CHIPS } from "../data/communityLists";
+import api from "../../lib/api";
 
-// Mock Genres for filtering (since API doesn't provide them)
-const GENRES = ["Acción", "Aventura", "Carreras", "RPG", "Estrategia", "Terror"];
+const GENRES = CATEGORY_CHIPS.filter(c => c !== "Todas");
 
 const getMockGenre = (deal: Deal): string => {
   const title = deal.title.toLowerCase();
   if (title.includes("race") || title.includes("moto") || title.includes("speed") || title.includes("drive")) return "Carreras";
-  if (title.includes("dead") || title.includes("zombie") || title.includes("horror") || title.includes("evil")) return "Terror";
+  if (title.includes("dead") || title.includes("zombie") || title.includes("horror") || title.includes("evil") || title.includes("fear")) return "Terror";
   if (title.includes("war") || title.includes("duty") || title.includes("shoot") || title.includes("gun")) return "Acción";
   if (title.includes("tomb") || title.includes("creed") || title.includes("uncharted")) return "Aventura";
-  if (title.includes("final") || title.includes("dragon") || title.includes("fantasy")) return "RPG";
+  if (title.includes("final") || title.includes("dragon") || title.includes("fantasy")) return "Rol";
   if (title.includes("civilization") || title.includes("age") || title.includes("sim")) return "Estrategia";
+  if (title.includes("fifa") || title.includes("nba") || title.includes("nfl") || title.includes("pes") || title.includes("tennis") || title.includes("golf")) return "Deportes";
   
-  // Deterministic fallback based on ID char code sum
+  // Respaldo determinista
   const sum = deal.dealID.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return GENRES[sum % GENRES.length];
 };
@@ -26,6 +28,7 @@ export function Market() {
   const { user, login } = useAuth();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [filteredDeals, setFilteredDeals] = useState<Deal[]>([]);
+  const [gameGenresCache, setGameGenresCache] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchOnlyDeals, setSearchOnlyDeals] = useState(false);
@@ -67,7 +70,26 @@ export function Market() {
     }
   }, [isPriceDropdownOpen]);
 
-const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
+  const fetchSteamGenres = async (dealsToFetch: Deal[]) => {
+    try {
+      const appIds = [...new Set(dealsToFetch.map(d => Number(d.steamAppID)).filter(id => !isNaN(id) && id > 0))];
+      if (appIds.length === 0) return;
+      
+      const response = await api.post("/steam/games-info", { appIds });
+      const metadata = response.data;
+      
+      const newGenresMap: Record<string, string[]> = {};
+      Object.keys(metadata).forEach(appId => {
+         newGenresMap[appId] = metadata[appId].genres || [];
+      });
+      
+      setGameGenresCache(prev => ({...prev, ...newGenresMap}));
+    } catch (err) {
+      console.error("Failed to fetch steam genres", err);
+    }
+  };
+
+  const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
     if (!isLoadMore) {
       setLoading(true);
       setPage(0);
@@ -77,23 +99,42 @@ const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
     }
 
     try {
-      if (searchTerm && !searchOnlyDeals) {
-        // Fetch specific game (not necessarily on sale) using /games endpoint
-        const response = await axios.get("https://www.cheapshark.com/api/1.0/games", {
-          params: { title: searchTerm, exact: 0 }
+      if (!searchOnlyDeals) {
+        // CATÁLOGO MODE (Solo juegos sin descuento)
+        if (!searchTerm) {
+          setDeals([]);
+          setHasMore(false);
+          setLoading(false);
+          setIsLoadingMore(false);
+          return;
+        }
+
+        // Fetch de todos los juegos que coinciden
+        const gamesRes = await axios.get("https://www.cheapshark.com/api/1.0/games", {
+          params: { title: searchTerm, limit: 60, exact: 0 }
         });
+
+        // Fetch de las ofertas activas para poder descartarlas
+        const dealsRes = await axios.get("https://www.cheapshark.com/api/1.0/deals", {
+          params: { title: searchTerm, storeID: "1" }
+        });
+
+        // Crear Set con los IDs de juegos que SÍ tienen oferta activa
+        const activeDealGameIds = new Set(dealsRes.data.map((d: any) => d.gameID));
         
-        // Convert games format to match deals format
-        let fetchedGames = response.data.map((game: any) => ({
-          dealID: game.cheapestDealID,
+        // Filtrar juegos que NO están en la lista de ofertas
+        const nonDealGames = gamesRes.data.filter((g: any) => !activeDealGameIds.has(g.gameID));
+
+        let fetchedGames = nonDealGames.map((game: any) => ({
+          dealID: game.cheapestDealID || game.gameID,
           dealRating: "0",
           gameID: game.gameID,
           internalName: game.internalName,
-          isOnSale: game.cheapest < 100 ? "1" : "0", // Rough estimation if no direct data
+          isOnSale: "0",
           lastChange: 0,
-          normalPrice: "0", // the games endpoint doesn't return normal price reliably
+          normalPrice: game.cheapest || "0", // No hay descuento, así que normal = sale
           releaseDate: 0,
-          salePrice: game.cheapest,
+          salePrice: game.cheapest || "0",
           savings: "0",
           steamAppID: game.steamAppID,
           steamRatingCount: "0",
@@ -105,8 +146,10 @@ const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
         }));
 
         setDeals(fetchedGames);
+        fetchSteamGenres(fetchedGames);
         setHasMore(false); // Game search doesn't paginate the same way
       } else {
+        // OFERTAS MODE (Solo ofertas reales)
         const params: any = {
           storeID: "1", // Steam
           upperPrice: maxPrice,
@@ -177,6 +220,7 @@ const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
         } else {
           setDeals(fetchedDeals);
         }
+        fetchSteamGenres(fetchedDeals);
       }
     } catch (error) {
       console.error("Error fetching deals:", error);
@@ -212,15 +256,23 @@ const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
     
     // Apply genre filter
     if (selectedGenre) {
-      filtered = filtered.filter(deal => getMockGenre(deal) === selectedGenre);
+      filtered = filtered.filter(deal => {
+        const steamAppId = deal.steamAppID;
+        const genresFromSteam = gameGenresCache[steamAppId];
+        if (genresFromSteam && genresFromSteam.length > 0) {
+          // Check if any fetched genre matches the selected genre loosely
+          return genresFromSteam.some(g => g.toLowerCase() === selectedGenre.toLowerCase());
+        }
+        // Fallback si todavía no carga la categoría oficial de Steam
+        return getMockGenre(deal) === selectedGenre;
+      });
     }
-    
+
     setFilteredDeals(filtered);
-  }, [deals, selectedGenre, minPrice]);
+  }, [deals, selectedGenre, minPrice, gameGenresCache]);
 
   const handleSteamLogin = () => {
     if (isGuest) {
-      // If guest, logout first or just redirect to login
       login(); // This redirects to steam auth
     } else {
       login();
@@ -230,11 +282,13 @@ const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
   const GenreIcon = ({ genre }: { genre: string }) => {
     switch(genre) {
       case "Carreras": return <Car size={14} />;
+      case "Deportes": return <Gamepad2 size={14} />;
       case "Acción": return <Sword size={14} />;
       case "Aventura": return <Crosshair size={14} />;
       case "Estrategia": return <Zap size={14} />;
       case "Terror": return <Ghost size={14} />;
       case "RPG": return <Gamepad2 size={14} />;
+      case "Rol": return <Gamepad2 size={14} />;
       default: return <Gamepad2 size={14} />;
     }
   };
@@ -526,10 +580,16 @@ const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
              </>
           ) : (
             <div className="text-center py-20 text-slate-500">
-              <p className="text-xl">No se encontraron ofertas con estos criterios.</p>
-              <button onClick={() => {setSearchTerm(""); setSelectedGenre(null);}} className="text-blue-400 text-sm mt-2 hover:underline">
-                Limpiar filtros
-              </button>
+              <p className="text-xl">
+                {!searchOnlyDeals && !searchTerm 
+                  ? "Ingresa el nombre de un juego para buscar en el catálogo." 
+                  : "No se encontraron juegos con estos criterios."}
+              </p>
+              {(searchTerm || selectedGenre) && (
+                <button onClick={() => {setSearchTerm(""); setSelectedGenre(null);}} className="text-blue-400 text-sm mt-2 hover:underline">
+                  Limpiar filtros
+                </button>
+              )}
             </div>
           )}
         </>

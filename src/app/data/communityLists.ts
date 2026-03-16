@@ -54,15 +54,14 @@ export const FEED_TABS: { id: FeedTab; label: string }[] = [
 
 export const CATEGORY_CHIPS = [
   "Todas",
-  "Accion",
-  "Co-op",
+  "Acción",
+  "Aventura",
+  "Rol",
   "Estrategia",
   "Indie",
-  "Ofertas",
-  "RPG",
-  "Retro",
-  "Sci-Fi",
-  "Simulacion",
+  "Simulación",
+  "Deportes",
+  "Carreras",
   "Terror",
 ] as const;
 
