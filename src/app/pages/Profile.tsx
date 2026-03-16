@@ -107,7 +107,12 @@ const FALLBACK_ACTIVITY = [
     tone: "achievement",
   },
   { name: "Stardew Valley", action: "JugÃ³ 1.8h", when: "Ayer", tone: "play" },
-  { name: "Terraria", action: "JugÃ³ 4.5h", when: "Hace 3 dÃ­as", tone: "play" },
+  {
+    name: "Terraria",
+    action: "JugÃ³ 4.5h",
+    when: "Hace 3 dÃ­as",
+    tone: "play",
+  },
   {
     name: "Cyberpunk 2077",
     action: "DesbloqueÃ³ 'The Sun'",
@@ -301,10 +306,24 @@ export function Profile() {
     profile?.dailyAverageHours ??
     Number(((totalHours || 0) / daysSinceMember).toFixed(1));
   // Reemplazar la cuenta por la cuenta real si estÃ¡ disponible
-  const apiAchievements = achievementsData === null ? "..." : (achievementsData?.totalAchievements ?? profile?.totalAchievements ?? 0);
-    const totalAchievements = apiAchievements === 0 && games.length > 0 ? Math.round(games.length * 9.6) : apiAchievements;
-  const apiCompleted = achievementsData === null ? "..." : (achievementsData?.perfectGames ?? profile?.completedGames ?? 0);
-    const completedGames = apiCompleted === 0 && games.length > 0 ? Math.floor(games.length * 0.1) : apiCompleted;
+  const apiAchievements =
+    achievementsData === null
+      ? "..."
+      : (achievementsData?.totalAchievements ??
+        profile?.totalAchievements ??
+        0);
+  const totalAchievements =
+    apiAchievements === 0 && games.length > 0
+      ? Math.round(games.length * 9.6)
+      : apiAchievements;
+  const apiCompleted =
+    achievementsData === null
+      ? "..."
+      : (achievementsData?.perfectGames ?? profile?.completedGames ?? 0);
+  const completedGames =
+    apiCompleted === 0 && games.length > 0
+      ? Math.floor(games.length * 0.1)
+      : apiCompleted;
 
   // Mostramos los logros reales mÃ¡s raros conseguidos por el jugador
   // O un pequeÃ±o fallback vacÃ­o mientras cargan
@@ -467,7 +486,7 @@ export function Profile() {
       iconClass: "text-[#c27aff]",
     },
     {
-      label: "Media/DÃ­a",
+      label: "Media/Dí­a",
       value: `${dailyAverage}h`,
       Icon: TrendingUp,
       valueClass: "text-[#00d3f3]",
@@ -548,7 +567,7 @@ export function Profile() {
                   ID: {user.steamid.slice(0, 6)}...
                 </span>
                 <span className="bg-[rgba(13,84,43,0.3)] rounded-[4px] px-2 py-1 text-[10px] text-[#05df72]">
-                  â— Online
+                  Online
                 </span>
                 <span className="bg-[rgba(28,57,142,0.3)] rounded-[4px] px-2 py-1 text-[10px] text-[#51a2ff]">
                   Miembro desde {memberYear}
@@ -599,7 +618,7 @@ export function Profile() {
       <section className="grid grid-cols-1 xl:grid-cols-[1.53fr_1fr] gap-6">
         <article className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[16px] px-5 py-5 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
           <h3 className="text-white text-[24px] font-bold flex items-center gap-2 mb-4">
-            <Trophy size={18} className="text-[#ffb900]" /> Top 5 MÃ¡s Jugados
+            <Trophy size={18} className="text-[#ffb900]" /> Top 5 Más Jugados
           </h3>
 
           <div className="relative mt-2 pt-1 pb-8">
@@ -655,7 +674,7 @@ export function Profile() {
         <article className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[16px] px-5 py-5 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-white text-[24px] font-bold flex items-center gap-2">
-              <Gamepad2 size={18} className="text-[#8b5cf6]" /> GÃ©neros
+              <Gamepad2 size={18} className="text-[#8b5cf6]" /> Géneros
               Favoritos
             </h3>
             <span className="bg-[#1d293d] rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.5px] text-[#62748e]">
@@ -676,7 +695,7 @@ export function Profile() {
                   {genreFocus.name}
                 </p>
                 <p className="text-[#94a3b8] text-[11px] mt-1">
-                  {genreFocus.hours}h Â· {genreFocus.pct}%
+                  {genreFocus.hours}h - {genreFocus.pct}%
                 </p>
                 <p className="text-[#64748b] text-[10px]">
                   {genreFocus.games} juegos
@@ -751,7 +770,9 @@ export function Profile() {
                 </p>
               </div>
               {achievement.unlocked && (
-                <span className="text-[10px] text-[#00d492] font-bold">âœ“</span>
+                <span className="text-[10px] text-[#00d492] font-bold">
+                  âœ“
+                </span>
               )}
             </article>
           ))}
