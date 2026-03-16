@@ -241,7 +241,7 @@ export function Lists() {
         categories: [createCategory],
         coverImage: createCover,
         games: createSelectedGames.map((g, index) => ({
-          appId: index + 1, // Fallback dummy appId since we don't have Steam AppId easily accessible in this dummy list
+          appId: parseInt(g.id, 10) || index + 1, 
           name: g.title,
           imageUrl: g.image
         }))
