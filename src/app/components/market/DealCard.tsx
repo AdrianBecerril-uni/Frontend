@@ -39,8 +39,15 @@ export function DealCard({ deal }: DealCardProps) {
         <img
           src={deal.steamAppID ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${deal.steamAppID}/header.jpg` : deal.thumb}
           alt={deal.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 bg-slate-800"
           loading="lazy"
+          onError={(e) => {
+            // Si falla la imagen de Steam, cae a la imagen de la API
+            const target = e.target as HTMLImageElement;
+            if (target.src !== deal.thumb) {
+              target.src = deal.thumb;
+            }
+          }}
         />
         {hasDiscount && (
           <div className="absolute top-1 right-1 bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg">
@@ -65,11 +72,13 @@ export function DealCard({ deal }: DealCardProps) {
           </h3>
         </Link>
 
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
-            Rating: {deal.dealRating}/10
-          </span>
-        </div>
+        {deal.dealRating !== "0" && (
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+              Rating: {deal.dealRating}/10
+            </span>
+          </div>
+        )}
 
         <div className="mt-auto flex items-center justify-between">
           <div className="flex flex-col">

@@ -6,15 +6,16 @@ import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 
 // Mock Genres for filtering (since API doesn't provide them)
-const GENRES = ["Action", "Shooter", "Racing", "RPG", "Strategy", "Horror"];
+const GENRES = ["Acción", "Aventura", "Carreras", "RPG", "Estrategia", "Terror"];
 
 const getMockGenre = (deal: Deal): string => {
   const title = deal.title.toLowerCase();
-  if (title.includes("race") || title.includes("moto") || title.includes("speed")) return "Racing";
-  if (title.includes("dead") || title.includes("zombie") || title.includes("horror")) return "Horror";
-  if (title.includes("war") || title.includes("duty") || title.includes("shoot") || title.includes("gun")) return "Shooter";
+  if (title.includes("race") || title.includes("moto") || title.includes("speed") || title.includes("drive")) return "Carreras";
+  if (title.includes("dead") || title.includes("zombie") || title.includes("horror") || title.includes("evil")) return "Terror";
+  if (title.includes("war") || title.includes("duty") || title.includes("shoot") || title.includes("gun")) return "Acción";
+  if (title.includes("tomb") || title.includes("creed") || title.includes("uncharted")) return "Aventura";
   if (title.includes("final") || title.includes("dragon") || title.includes("fantasy")) return "RPG";
-  if (title.includes("civilization") || title.includes("age") || title.includes("sim")) return "Strategy";
+  if (title.includes("civilization") || title.includes("age") || title.includes("sim")) return "Estrategia";
   
   // Deterministic fallback based on ID char code sum
   const sum = deal.dealID.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -27,6 +28,7 @@ export function Market() {
   const [filteredDeals, setFilteredDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchOnlyDeals, setSearchOnlyDeals] = useState(false);
   const [minPrice, setMinPrice] = useState("0");
   const [maxPrice, setMaxPrice] = useState("150");
   const [sortBy, setSortBy] = useState("rating-desc");
@@ -75,7 +77,7 @@ const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
     }
 
     try {
-      if (searchTerm) {
+      if (searchTerm && !searchOnlyDeals) {
         // Fetch specific game (not necessarily on sale) using /games endpoint
         const response = await axios.get("https://www.cheapshark.com/api/1.0/games", {
           params: { title: searchTerm, exact: 0 }
@@ -111,6 +113,10 @@ const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
           pageSize: 60, // Limit results
           pageNumber: pageNumber // Add page number for pagination
         };
+
+        if (searchTerm) {
+          params.title = searchTerm;
+        }
 
         // Map sort values to API parameters (API only supports ascending for these)
         if (sortBy.startsWith("price")) {
@@ -186,7 +192,7 @@ const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
       fetchDeals(0, false);
     }, 500); // Debounce search
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, maxPrice, sortBy]);
+  }, [searchTerm, maxPrice, sortBy, searchOnlyDeals]);
 
   const loadMore = () => {
     const nextPage = page + 1;
@@ -223,11 +229,11 @@ const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
 
   const GenreIcon = ({ genre }: { genre: string }) => {
     switch(genre) {
-      case "Racing": return <Car size={14} />;
-      case "Action": return <Sword size={14} />;
-      case "Shooter": return <Crosshair size={14} />;
-      case "Strategy": return <Zap size={14} />;
-      case "Horror": return <Ghost size={14} />;
+      case "Carreras": return <Car size={14} />;
+      case "Acción": return <Sword size={14} />;
+      case "Aventura": return <Crosshair size={14} />;
+      case "Estrategia": return <Zap size={14} />;
+      case "Terror": return <Ghost size={14} />;
       case "RPG": return <Gamepad2 size={14} />;
       default: return <Gamepad2 size={14} />;
     }
@@ -301,7 +307,22 @@ const fetchDeals = async (pageNumber = 0, isLoadMore = false) => {
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
-            
+
+            <div className="flex bg-slate-900 border border-slate-700 rounded-lg p-1 h-[38px] self-center">
+              <button
+                onClick={() => setSearchOnlyDeals(true)}
+                className={`px-3 flex items-center justify-center text-xs font-medium rounded-md transition-colors ${searchOnlyDeals ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                Ofertas
+              </button>
+              <button
+                onClick={() => setSearchOnlyDeals(false)}
+                className={`px-3 flex items-center justify-center text-xs font-medium rounded-md transition-colors ${!searchOnlyDeals ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                Catálogo
+              </button>
+            </div>
+
             {/* Price Filter Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button
