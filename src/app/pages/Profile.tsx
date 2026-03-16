@@ -327,15 +327,15 @@ export function Profile() {
     .slice(0, 5);
 
   const memberYear = parseMemberYear(profile?.memberSince);
-  const level = profile?.level ?? 25;
-  const xpCurrent = profile?.xpCurrent ?? 183;
-  const xpTotal = profile?.xpTotal ?? 510;
+  const level = profile?.level ?? 0;
+  const xpCurrent = profile?.xpCurrent ?? 0;
+  const xpTotal = profile?.xpTotal ?? 1;
   const xpProgress = Math.min(
     100,
     Math.max(0, (xpCurrent / Math.max(1, xpTotal)) * 100),
   );
 
-  const libraryValue = profile?.libraryValue ?? 1250;
+  const libraryValue = profile?.libraryValue ?? 0;
   const dailyAverage =
     profile?.dailyAverageHours ??
     Math.max(
@@ -345,8 +345,8 @@ export function Profile() {
           Math.max(365, (new Date().getFullYear() - memberYear + 1) * 365),
       ),
     );
-  const totalAchievements = profile?.totalAchievements ?? 547;
-  const completedGames = profile?.completedGames ?? 10;
+  const totalAchievements = profile?.totalAchievements ?? 0;
+  const completedGames = profile?.completedGames ?? 0;
 
   const genreItems = normalizeGenres(genreData, totalHours);
 
