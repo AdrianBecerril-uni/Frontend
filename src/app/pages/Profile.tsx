@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Navigate, Link } from "react-router";
 import api from "../../lib/api";
@@ -96,22 +96,22 @@ const FALLBACK_LIBRARY: Game[] = [
 const FALLBACK_ACTIVITY = [
   {
     name: "Counter-Strike 2",
-    action: "Jugó 3.2h",
+    action: "JugÃ³ 3.2h",
     when: "Hace 2h",
     tone: "play",
   },
   {
     name: "Elden Ring",
-    action: "Desbloqueó 'Lord of Frenzied Flame'",
+    action: "DesbloqueÃ³ 'Lord of Frenzied Flame'",
     when: "Hace 5h",
     tone: "achievement",
   },
-  { name: "Stardew Valley", action: "Jugó 1.8h", when: "Ayer", tone: "play" },
-  { name: "Terraria", action: "Jugó 4.5h", when: "Hace 3 días", tone: "play" },
+  { name: "Stardew Valley", action: "JugÃ³ 1.8h", when: "Ayer", tone: "play" },
+  { name: "Terraria", action: "JugÃ³ 4.5h", when: "Hace 3 dÃ­as", tone: "play" },
   {
     name: "Cyberpunk 2077",
-    action: "Desbloqueó 'The Sun'",
-    when: "Hace 4 días",
+    action: "DesbloqueÃ³ 'The Sun'",
+    when: "Hace 4 dÃ­as",
     tone: "achievement",
   },
 ];
@@ -150,7 +150,7 @@ function relativeLabel(lastPlayed?: number, fallback = "Reciente") {
   const days = Math.floor(delta / 86_400_000);
   if (hours < 24) return `Hace ${Math.max(1, hours)}h`;
   if (days === 1) return "Ayer";
-  return `Hace ${days} días`;
+  return `Hace ${days} dÃ­as`;
 }
 
 function normalizeGenres(raw: any, totalHours: number): GenreItem[] {
@@ -166,9 +166,9 @@ function normalizeGenres(raw: any, totalHours: number): GenreItem[] {
       { name: "FPS / Shooter", pct: 42, games: 12 },
       { name: "RPG", pct: 22, games: 9 },
       { name: "Sandbox / Survival", pct: 12, games: 8 },
-      { name: "Acción / Aventura", pct: 10, games: 6 },
+      { name: "AcciÃ³n / Aventura", pct: 10, games: 6 },
       { name: "Estrategia", pct: 5, games: 4 },
-      { name: "Simulación", pct: 4, games: 3 },
+      { name: "SimulaciÃ³n", pct: 4, games: 3 },
       { name: "Indie", pct: 3, games: 5 },
       { name: "Otros", pct: 2, games: 10 },
     ];
@@ -183,7 +183,7 @@ function normalizeGenres(raw: any, totalHours: number): GenreItem[] {
     .map((item: any, index: number) => {
       const hours = Number(item.hours ?? item.playtime ?? item.value ?? 0);
       return {
-        name: String(item.name ?? item.genre ?? `Género ${index + 1}`),
+        name: String(item.name ?? item.genre ?? `GÃ©nero ${index + 1}`),
         hours: Number.isFinite(hours) ? hours : 0,
         games: Number(item.games ?? item.count ?? 0) || 0,
       };
@@ -300,14 +300,14 @@ export function Profile() {
   const dailyAverage =
     profile?.dailyAverageHours ??
     Number(((totalHours || 0) / daysSinceMember).toFixed(1));
-  // Reemplazar la cuenta por la cuenta real si está disponible
+  // Reemplazar la cuenta por la cuenta real si estÃ¡ disponible
   const apiAchievements = achievementsData === null ? "..." : (achievementsData?.totalAchievements ?? profile?.totalAchievements ?? 0);
     const totalAchievements = apiAchievements === 0 && games.length > 0 ? Math.round(games.length * 9.6) : apiAchievements;
   const apiCompleted = achievementsData === null ? "..." : (achievementsData?.perfectGames ?? profile?.completedGames ?? 0);
     const completedGames = apiCompleted === 0 && games.length > 0 ? Math.floor(games.length * 0.1) : apiCompleted;
 
-  // Mostramos los logros reales más raros conseguidos por el jugador
-  // O un pequeño fallback vacío mientras cargan
+  // Mostramos los logros reales mÃ¡s raros conseguidos por el jugador
+  // O un pequeÃ±o fallback vacÃ­o mientras cargan
   const isLoadingAchievements = achievementsData === null;
   const hasRareAchievements =
     achievementsData?.rarestAchievementsList?.length > 0;
@@ -316,8 +316,8 @@ export function Profile() {
 
   const getMappedAchievements = (list: any[]) =>
     (list || []).map((ach: any) => {
-      // Si el logro no estÃ¡ desbloqueado (ahora podemos recibir logros normales/bloqueados del backend)
-      const isUnlocked = ach.unlocked !== false; // Si no viene explÃcitamente como false, lo asumimos desbloqueado
+      // Si el logro no estÃƒÂ¡ desbloqueado (ahora podemos recibir logros normales/bloqueados del backend)
+      const isUnlocked = ach.unlocked !== false; // Si no viene explÃƒcitamente como false, lo asumimos desbloqueado
 
       return {
         title: ach.name,
@@ -343,7 +343,7 @@ export function Profile() {
         : [],
   );
 
-  // Y si no hay datos de steam, podríamos no mostrar nada o rellenar
+  // Y si no hay datos de steam, podrÃ­amos no mostrar nada o rellenar
   let displayAchievements = [];
   if (isLoadingAchievements) {
     displayAchievements = [
@@ -363,7 +363,7 @@ export function Profile() {
     displayAchievements = [
       {
         title: "Sin logros",
-        subtitle: "Aún no hay logros conseguidos",
+        subtitle: "AÃºn no hay logros conseguidos",
         unlocked: false,
         icon: Zap,
         cardClass: "bg-[#162032] border-[#1d293d] opacity-60",
@@ -435,8 +435,8 @@ export function Profile() {
     name: r.name,
     action:
       r.playtime2Weeks && r.playtime2Weeks > 0
-        ? `Jugó ${(r.playtime2Weeks / 60).toFixed(1)}h`
-        : `Jugó ${Math.max(1, Math.round((r.playtimeForever || 0) / 60))}h`,
+        ? `JugÃ³ ${(r.playtime2Weeks / 60).toFixed(1)}h`
+        : `JugÃ³ ${Math.max(1, Math.round((r.playtimeForever || 0) / 60))}h`,
     when: relativeLabel(r.lastPlayed, index === 0 ? "Hace 2h" : "Reciente"),
     tone: "play" as const,
   }));
@@ -467,7 +467,7 @@ export function Profile() {
       iconClass: "text-[#c27aff]",
     },
     {
-      label: "Media/Día",
+      label: "Media/DÃ­a",
       value: `${dailyAverage}h`,
       Icon: TrendingUp,
       valueClass: "text-[#00d3f3]",
@@ -527,7 +527,7 @@ export function Profile() {
                   Lv.{level}
                 </span>
                 <span className="text-[12px] text-[#62748e]">
-                  {profile?.title || "Veterano"}
+                  {profile?.title}
                 </span>
               </div>
 
@@ -548,7 +548,7 @@ export function Profile() {
                   ID: {user.steamid.slice(0, 6)}...
                 </span>
                 <span className="bg-[rgba(13,84,43,0.3)] rounded-[4px] px-2 py-1 text-[10px] text-[#05df72]">
-                  ● Online
+                  â— Online
                 </span>
                 <span className="bg-[rgba(28,57,142,0.3)] rounded-[4px] px-2 py-1 text-[10px] text-[#51a2ff]">
                   Miembro desde {memberYear}
@@ -568,7 +568,7 @@ export function Profile() {
               <button
                 onClick={logout}
                 className="h-[34px] w-[34px] rounded-[10px] border border-[rgba(130,24,26,0.3)] text-[#ff637e] flex items-center justify-center hover:bg-[rgba(130,24,26,0.15)] transition-colors"
-                title="Cerrar sesión"
+                title="Cerrar sesiÃ³n"
               >
                 <LogOut size={16} />
               </button>
@@ -599,7 +599,7 @@ export function Profile() {
       <section className="grid grid-cols-1 xl:grid-cols-[1.53fr_1fr] gap-6">
         <article className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[16px] px-5 py-5 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
           <h3 className="text-white text-[24px] font-bold flex items-center gap-2 mb-4">
-            <Trophy size={18} className="text-[#ffb900]" /> Top 5 Más Jugados
+            <Trophy size={18} className="text-[#ffb900]" /> Top 5 MÃ¡s Jugados
           </h3>
 
           <div className="relative mt-2 pt-1 pb-8">
@@ -655,7 +655,7 @@ export function Profile() {
         <article className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[16px] px-5 py-5 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-white text-[24px] font-bold flex items-center gap-2">
-              <Gamepad2 size={18} className="text-[#8b5cf6]" /> Géneros
+              <Gamepad2 size={18} className="text-[#8b5cf6]" /> GÃ©neros
               Favoritos
             </h3>
             <span className="bg-[#1d293d] rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.5px] text-[#62748e]">
@@ -676,7 +676,7 @@ export function Profile() {
                   {genreFocus.name}
                 </p>
                 <p className="text-[#94a3b8] text-[11px] mt-1">
-                  {genreFocus.hours}h · {genreFocus.pct}%
+                  {genreFocus.hours}h Â· {genreFocus.pct}%
                 </p>
                 <p className="text-[#64748b] text-[10px]">
                   {genreFocus.games} juegos
@@ -711,7 +711,7 @@ export function Profile() {
             <Award size={18} className="text-[#ffb900]" />{" "}
             {realAchievements.length > 0
               ? hasRareAchievements
-                ? "Logros Más Destacados"
+                ? "Logros MÃ¡s Destacados"
                 : "Logros Recientes"
               : "Logros de Perfil"}
           </h3>
@@ -751,7 +751,7 @@ export function Profile() {
                 </p>
               </div>
               {achievement.unlocked && (
-                <span className="text-[10px] text-[#00d492] font-bold">✓</span>
+                <span className="text-[10px] text-[#00d492] font-bold">âœ“</span>
               )}
             </article>
           ))}
