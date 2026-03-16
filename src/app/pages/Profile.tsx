@@ -224,6 +224,11 @@ export function Profile() {
             .catch(() => ({ data: null })),
         ]);
 
+        const profileData = profileRes.data || {};
+        if (gamesRes.data?.libraryValue !== undefined) {
+          profileData.libraryValue = gamesRes.data.libraryValue;
+        }
+
         setProfile(profileRes.data || null);
         setGames(gamesRes.data?.games || []);
         setRecentGames(recentRes.data?.games || []);
@@ -280,20 +285,32 @@ export function Profile() {
   );
 
   const libraryValue = profile?.libraryValue ?? 0;
+
+  const memberSinceMs =
+    typeof profile?.memberSince === "number"
+      ? profile.memberSince > 1e11
+        ? profile.memberSince
+        : profile.memberSince * 1000
+      : new Date(memberYear, 0, 1).getTime();
+  const daysSinceMember = Math.max(
+    1,
+    Math.floor((Date.now() - memberSinceMs) / 86400000),
+  );
+
   const dailyAverage =
     profile?.dailyAverageHours ??
-    Math.max(
-      1,
-      Math.round(
-        totalHours /
-          Math.max(365, (new Date().getFullYear() - memberYear + 1) * 365),
-      ),
-    );
+    Number(((totalHours || 0) / daysSinceMember).toFixed(1));
   // Reemplazar la cuenta por la cuenta real si está disponible
   const totalAchievements =
-    achievementsData?.totalAchievements ?? profile?.totalAchievements ?? 0;
+    achievementsData === null
+      ? "..."
+      : (achievementsData?.totalAchievements ??
+        profile?.totalAchievements ??
+        0);
   const completedGames =
-    achievementsData?.perfectGames ?? profile?.completedGames ?? 0;
+    achievementsData === null
+      ? "..."
+      : (achievementsData?.perfectGames ?? profile?.completedGames ?? 0);
 
   // Mostramos los logros reales más raros conseguidos por el jugador
   // O un pequeño fallback vacío mientras cargan
@@ -352,7 +369,7 @@ export function Profile() {
     displayAchievements = [
       {
         title: "Sin logros",
-        subtitle: "A�n no hay logros conseguidos",
+        subtitle: "Aún no hay logros conseguidos",
         unlocked: false,
         icon: Zap,
         cardClass: "bg-[#162032] border-[#1d293d] opacity-60",
