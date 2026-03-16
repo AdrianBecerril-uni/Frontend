@@ -202,9 +202,10 @@ export function Lists() {
       
       closeCreateModal();
       // Optionally reload lists here if you fetch them from backend
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating list:', err);
-      alert('Error creating list. Check compiler/database logs.');
+      const errorMessage = err.response?.data?.error || err.message || 'Unknown error';
+      alert(`Error creating list: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
