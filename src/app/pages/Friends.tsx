@@ -19,10 +19,17 @@ import {
   Sparkles,
   Gem,
   Shield,
+  Search,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { Navigate } from "react-router";
-import api from "../../lib/api";
+import api, { getCommonGames } from "../../lib/api";
+import {
+  SessionBooking,
+  UpcomingSessions,
+  type ScheduledSession,
+  type SessionGame,
+} from "../components/SessionBooking";
 
 interface Friend {
   steamId: string;
@@ -31,6 +38,11 @@ interface Friend {
   status: number;
   currentGame: string | null;
   friendSince?: number;
+}
+
+interface CommonGame extends SessionGame {
+  owners: number;
+  lastPlayed?: number;
 }
 
 type Tab = "amigos" | "analitica" | "sesiones";
@@ -1404,6 +1416,13 @@ export function Friends() {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<Tab>("amigos");
+  const [commonGames, setCommonGames] = useState<CommonGame[]>([]);
+  const [loadingCommonGames, setLoadingCommonGames] = useState(false);
+  const [bookingGame, setBookingGame] = useState<CommonGame | null>(null);
+  const [scheduledSessions, setScheduledSessions] = useState<ScheduledSession[]>(
+    [],
+  );
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     if (!user?.steamid) return;
@@ -1422,6 +1441,30 @@ export function Friends() {
 
     loadFriends();
   }, [user?.steamid]);
+
+  useEffect(() => {
+    const loadCommonGames = async () => {
+      if (!user?.steamid || selectedIds.size === 0) {
+        setCommonGames([]);
+        return;
+      }
+
+      const steamIds = [user.steamid, ...Array.from(selectedIds)];
+
+      setLoadingCommonGames(true);
+      try {
+        const res = await getCommonGames(steamIds);
+        setCommonGames(res.data?.games || []);
+      } catch (error) {
+        console.error("Error loading common games:", error);
+        setCommonGames([]);
+      } finally {
+        setLoadingCommonGames(false);
+      }
+    };
+
+    loadCommonGames();
+  }, [user?.steamid, selectedIds]);
 
   if (!user) return <Navigate to="/login" replace />;
 
@@ -1468,6 +1511,10 @@ export function Friends() {
       return next;
     });
   };
+
+  const filteredFriends = friends.filter((friend) =>
+    friend.username.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
 
   const tabs: { id: Tab; label: string; icon: ReactNode }[] = [
     { id: "amigos", label: "Amigos", icon: <Users size={18} /> },
@@ -1520,18 +1567,34 @@ export function Friends() {
             </p>
           </div>
 
+          <div className="relative">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#62748e]"
+            />
+            <input
+              type="text"
+              placeholder="Buscar amigos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-[#0f172b] border border-[#1d293d] rounded-[12px] pl-9 pr-4 py-2 text-sm text-white placeholder-[#62748e] focus:outline-none focus:border-[#155dfc]"
+            />
+          </div>
+
           {loading ? (
             <div className="flex justify-center py-10">
               <Loader2 className="animate-spin text-blue-500" size={24} />
             </div>
-          ) : friends.length === 0 ? (
+          ) : filteredFriends.length === 0 ? (
             <div className="py-8 text-center">
               <Users size={32} className="text-[#314158] mx-auto mb-2" />
-              <p className="text-[#62748e] text-xs">Lista vacía o privada</p>
+              <p className="text-[#62748e] text-xs">
+                {friends.length === 0 ? "Lista vacía o privada" : "No se encontraron amigos"}
+              </p>
             </div>
           ) : (
             <div className="flex flex-col gap-3 overflow-y-auto max-h-[480px] pr-1">
-              {friends.map((friend) => (
+              {filteredFriends.map((friend) => (
                 <button
                   key={friend.steamId}
                   onClick={() => toggleSelect(friend.steamId)}
@@ -1670,21 +1733,128 @@ export function Friends() {
           )}
 
           {activeTab === "sesiones" && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-full bg-[rgba(89,22,139,0.3)] flex items-center justify-center mb-4">
-                <CalendarDays size={32} className="text-[#c27aff]" />
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="bg-gradient-to-r from-blue-900/40 via-indigo-900/40 to-purple-900/40 border border-slate-700/50 rounded-3xl p-10 text-center relative overflow-hidden mb-8 shadow-2xl">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[80px] translate-y-1/3 -translate-x-1/3 pointer-events-none" />
+
+                <div className="relative z-10 flex flex-col items-center">
+                  <div className="bg-white/10 p-3 rounded-2xl mb-4 backdrop-blur-md">
+                    <Gamepad2 className="text-white w-8 h-8" />
+                  </div>
+                  <h2 className="text-4xl font-bold text-white mb-4 tracking-tight">
+                    ¿A qué jugamos hoy?
+                  </h2>
+                  <p className="text-slate-200 text-lg max-w-xl">
+                    {selectedIds.size > 0
+                      ? `Hemos encontrado ${commonGames.length} juegos en común entre tú y ${selectedIds.size} amigos.`
+                      : "Selecciona amigos de la barra lateral para encontrar juegos en común para vuestra sesión."}
+                  </p>
+                </div>
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">
-                Planificar Sesión
-              </h2>
-              <p className="text-[#90a1b9] max-w-md">
-                Selecciona amigos del panel izquierdo para encontrar juegos en
-                común y organizar una sesión.
-              </p>
+
+              {selectedIds.size === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-slate-900/30 border border-dashed border-slate-800 rounded-3xl">
+                  <Users size={64} className="text-slate-700 mb-6" />
+                  <h3 className="text-xl font-semibold text-slate-400 mb-2">
+                    Comienza añadiendo amigos
+                  </h3>
+                  <p className="text-slate-500">
+                    Selecciona al menos un amigo en el panel lateral
+                  </p>
+                </div>
+              ) : loadingCommonGames ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 className="animate-spin text-blue-500" size={28} />
+                </div>
+              ) : commonGames.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 bg-slate-900/30 border border-dashed border-slate-800 rounded-3xl">
+                  <Gamepad2 size={64} className="text-slate-700 mb-6" />
+                  <h3 className="text-xl font-semibold text-slate-400 mb-2">
+                    No hay juegos en común visibles
+                  </h3>
+                  <p className="text-slate-500">
+                    Puede que algún perfil sea privado o que no compartáis biblioteca.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {commonGames.map((game, i) => (
+                    <div
+                      key={game.appid}
+                      className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-4 flex gap-5 hover:border-blue-500/50 transition-all duration-300 group hover:shadow-lg hover:shadow-blue-500/5 items-center animate-in fade-in slide-in-from-bottom-2"
+                      style={{ animationDelay: `${i * 100}ms` }}
+                    >
+                      <div className="relative w-32 h-20 rounded-xl overflow-hidden shadow-lg shrink-0">
+                        <img
+                          src={game.headerImage}
+                          alt={game.name}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "https://via.placeholder.com/320x160?text=Game";
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex-1 min-w-0 flex flex-col justify-center gap-1.5">
+                        <h4 className="font-bold text-lg text-white truncate group-hover:text-blue-400 transition-colors">
+                          {game.name}
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] uppercase font-bold tracking-wider bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
+                            En común
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {game.owners} miembros
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setBookingGame(game)}
+                        className="p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-900/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-1.5"
+                        title="Reservar sesión"
+                      >
+                        <CalendarDays size={16} />
+                        <span className="text-xs font-bold hidden sm:inline">
+                          Reservar
+                        </span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {scheduledSessions.length > 0 && (
+                <div className="mt-8">
+                  <UpcomingSessions
+                    sessions={scheduledSessions}
+                    onRemove={(id: string) =>
+                      setScheduledSessions((prev) =>
+                        prev.filter((s) => s.id !== id),
+                      )
+                    }
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
+
+      {bookingGame && (
+        <SessionBooking
+          game={bookingGame}
+          selectedFriends={friends.filter((f) => selectedIds.has(f.steamId))}
+          onClose={() => setBookingGame(null)}
+          onConfirm={(session) => {
+            setScheduledSessions((prev) => [...prev, session]);
+            setBookingGame(null);
+          }}
+          existingSessions={scheduledSessions}
+        />
+      )}
     </div>
   );
 }
