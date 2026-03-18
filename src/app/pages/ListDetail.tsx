@@ -6,8 +6,9 @@ import {
   Share2,
   ThumbsDown,
   ThumbsUp,
+  Trash2,
 } from "lucide-react";
-import { Link, Navigate, useParams } from "react-router";
+import { Link, Navigate, useParams, useNavigate } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { useEffect, useState } from "react";
 import api from "../../lib/api";
@@ -51,12 +52,24 @@ interface List {
 
 export function ListDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user, login } = useAuth();
   const [list, setList] = useState<List | null>(null);
   const [comments, setComments] = useState<CommentData[]>([]);
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  const handleDelete = async () => {
+    if (!window.confirm("¿Estás seguro de que quieres borrar esta lista?")) return;
+    try {
+      await api.delete(`/api/lists/${id}`);
+      navigate("/lists");
+    } catch (err) {
+      console.error("Error deleting list:", err);
+      alert("Hubo un error al borrar la lista");
+    }
+  };
 
   useEffect(() => {
     const fetchListAndComments = async () => {
@@ -187,23 +200,36 @@ export function ListDetail() {
           </p>
 
           <div className="mt-6 flex items-center justify-between">
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 text-[#90a1b9] text-[16px]"
-            >
-              <MessageSquare size={20} /> {comments.length} Comentarios
-            </button>
+            <div className="flex items-center gap-6">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 text-[#90a1b9] text-[16px]"
+              >
+                <MessageSquare size={20} /> {comments.length} Comentarios
+              </button>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.href);
-                alert("!Enlace copiado al portapapeles!");
-              }}
-              className="inline-flex items-center gap-2 text-[#90a1b9] text-[16px] hover:text-white transition-colors"
-            >
-              <Share2 size={20} /> Compartir
-            </button>
+            <div className="flex items-center gap-6">
+              {user?.id === list.author._id && (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  className="inline-flex items-center gap-2 text-[#ff6467] text-[16px] hover:text-[#ff8a8c] transition-colors"
+                >
+                  <Trash2 size={20} /> Borrar lista
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.href);
+                  alert("!Enlace copiado al portapapeles!");
+                }}
+                className="inline-flex items-center gap-2 text-[#90a1b9] text-[16px] hover:text-white transition-colors"
+              >
+                <Share2 size={20} /> Compartir
+              </button>
+            </div>
           </div>
         </section>
 
