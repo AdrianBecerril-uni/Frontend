@@ -7,6 +7,7 @@ export interface User {
     personaname: string;
     avatarfull: string;
     profileurl: string;
+    role?: 'user' | 'admin';
     isAdmin?: boolean;
 }
 
@@ -32,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const steamId = params.get('steamId');
         const token = params.get('token');
         const userId = params.get('id');
+        const role = params.get('role');
 
         if (steamId && token) {
             // Steam callback — extract user data from URL params
@@ -41,6 +43,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 personaname: params.get('username') || 'Steam User',
                 avatarfull: params.get('avatar') || '',
                 profileurl: params.get('profileUrl') || `https://steamcommunity.com/profiles/${steamId}`,
+                role: role === 'admin' ? 'admin' : 'user',
+                isAdmin: role === 'admin' || params.get('isAdmin') === 'true',
             };
             setUser(userData);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
@@ -60,7 +64,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
                 const parsed = JSON.parse(stored);
                 if (parsed.steamid) {
-                    setUser(parsed);
+                    const normalizedUser: User = {
+                        ...parsed,
+                        role: parsed.role === 'admin' ? 'admin' : 'user',
+                        isAdmin: parsed.isAdmin === true || parsed.role === 'admin',
+                    };
+                    setUser(normalizedUser);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedUser));
                 }
             } catch {
                 localStorage.removeItem(STORAGE_KEY);
@@ -82,7 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         personaname: res.data.user.username,
                         avatarfull: res.data.user.avatar,
                         profileurl: res.data.user.profileUrl || `https://steamcommunity.com/profiles/${res.data.user.steamId}`,
-                        isAdmin: res.data.user.isAdmin || false,
+                        role: res.data.user.role === 'admin' ? 'admin' : 'user',
+                        isAdmin: res.data.user.role === 'admin' || res.data.user.isAdmin === true,
                     };
                     setUser(userData);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));

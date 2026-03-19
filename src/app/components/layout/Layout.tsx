@@ -26,6 +26,7 @@ export function Layout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const { user, logout } = useAuth();
+  const isAdmin = user?.role === "admin" || user?.isAdmin === true;
 
   const navItems = [
     { name: "Inicio", path: "/", icon: Home },
@@ -88,7 +89,7 @@ export function Layout() {
           })}
 
           {/* Admin Panel Link - Only for admins */}
-          {user?.isAdmin && (
+          {isAdmin && (
             <Link
               to="/admin"
               className={cn(
@@ -174,7 +175,7 @@ export function Layout() {
               })}
 
               {/* Admin Panel Link - Mobile */}
-              {user?.isAdmin && (
+              {isAdmin && (
                 <Link
                   to="/admin"
                   onClick={() => setIsMobileMenuOpen(false)}
