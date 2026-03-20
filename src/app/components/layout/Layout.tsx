@@ -123,7 +123,7 @@ export function Layout() {
               <span className="text-sm">Iniciar Sesión</span>
             </Link>
           ) : (
-            null
+            <div aria-hidden="true" className="h-12" />
           )}
         </div>
       </aside>
@@ -205,7 +205,7 @@ export function Layout() {
                   >
                     Cerrar Sesión
                   </button>
-                ) : isLoginPage ? null : (
+                ) : !isLoginPage ? (
                   <Link
                     to="/login"
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -213,6 +213,8 @@ export function Layout() {
                   >
                     Iniciar Sesión con Steam
                   </Link>
+                ) : (
+                  <div aria-hidden="true" className="h-[58px]" />
                 )}
               </div>
             </nav>
