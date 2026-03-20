@@ -1,27 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { Navigate, Link } from "react-router";
+import api from "../../lib/api";
 import {
-  Shield, AlertTriangle, Users, Flag, Eye, EyeOff,
-  Trash2, UserX, MessageSquareOff, Ban, FileText,
+  Shield, AlertTriangle, Users, Flag, Eye,
+  Trash2, MessageSquareOff, Ban, FileText,
   CheckCircle2, Search, Home, AlertOctagon, AlertCircle
 } from "lucide-react";
-
-// Mock data
-const MOCK_REPORTS = [
-  { id: 1, type: "list", title: "Los peores juegos de 2024", author: "TrollUser123", reason: "Contenido ofensivo", status: "pending", date: "Hace 2h" },
-  { id: 2, type: "comment", title: "Comentario en 'Mejores RPGs'", author: "HaterGamer", reason: "Spam", status: "pending", date: "Hace 5h" },
-  { id: 3, type: "user", title: "Usuario abusivo", author: "BadActor99", reason: "Múltiples infracciones", status: "resolved", date: "Hace 1d" },
-  { id: 4, type: "list", title: "Lista inapropiada", author: "SpamBot", reason: "Publicidad", status: "pending", date: "Hace 3h" },
-];
-
-const MOCK_USERS = [
-  { id: 1, name: "DemoGamer_99", status: "active", reports: 0, lastActive: "Hace 5min", joined: "2024-01-15" },
-  { id: 2, name: "TrollUser123", status: "warned", reports: 3, lastActive: "Hace 2h", joined: "2024-02-20" },
-  { id: 3, name: "HaterGamer", status: "silenced", reports: 5, lastActive: "Hace 1d", joined: "2024-03-10" },
-  { id: 4, name: "BadActor99", status: "banned", reports: 12, lastActive: "Hace 7d", joined: "2024-01-05" },
-  { id: 5, name: "NormalPlayer", status: "active", reports: 0, lastActive: "Hace 1h", joined: "2024-02-01" },
-];
 
 type TabType = "moderation" | "users";
 
@@ -29,10 +14,53 @@ export function Admin() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("moderation");
   const [searchTerm, setSearchTerm] = useState("");
+  const [reports, setReports] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [stats, setStats] = useState({ pending: 0, resolved: 0, deleted: 0, warned: 0, active: 0, silenced: 0, banned: 0 });
+  const [loading, setLoading] = useState(true);
 
-  if (!user?.isAdmin) {
+  if (!user?.isAdmin && user?.role !== 'admin') {
     return <Navigate to="/" replace />;
   }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [reportsRes, usersRes] = await Promise.all([
+        api.get('/api/moderation/reports?limit=50'),
+        api.get('/api/moderation/users?limit=50'),
+      ]);
+
+      setReports(reportsRes.data.reports || []);
+      setUsers(usersRes.data.users || []);
+
+      // Calcular stats
+      const pendingCount = reportsRes.data.reports?.filter(r => r.status === 'pending').length || 0;
+      const resolvedCount = reportsRes.data.reports?.filter(r => r.status === 'resolved').length || 0;
+      const warnedCount = usersRes.data.users?.filter(u => u.status === 'warned').length || 0;
+      const silencedCount = usersRes.data.users?.filter(u => u.status === 'silenced').length || 0;
+      const bannedCount = usersRes.data.users?.filter(u => u.status === 'banned').length || 0;
+      const activeCount = usersRes.data.users?.filter(u => u.status === 'active').length || 0;
+
+      setStats({
+        pending: pendingCount,
+        resolved: resolvedCount,
+        deleted: 0,
+        warned: warnedCount,
+        active: activeCount,
+        silenced: silencedCount,
+        banned: bannedCount,
+      });
+    } catch (error) {
+      console.error('Error cargando datos admin:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const tabs = [
     { id: "moderation" as TabType, name: "Moderación", icon: Shield, color: "text-blue-400", bg: "bg-blue-500/10" },
@@ -82,32 +110,74 @@ export function Admin() {
       </div>
 
       {/* Content */}
-      {activeTab === "moderation" && <ModerationPanel searchTerm={searchTerm} setSearchTerm={setSearchTerm} />}
-      {activeTab === "users" && <UsersPanel searchTerm={searchTerm} setSearchTerm={setSearchTerm} />}
+      {loading && (
+        <div className="text-center py-12">
+          <p className="text-slate-400">Cargando datos...</p>
+        </div>
+      )}
+      {!loading && (
+        <>
+          {activeTab === "moderation" && <ModerationPanel reports={reports} stats={stats} searchTerm={searchTerm} setSearchTerm={setSearchTerm} onReload={loadData} />}
+          {activeTab === "users" && <UsersPanel users={users} stats={stats} searchTerm={searchTerm} setSearchTerm={setSearchTerm} onReload={loadData} />}
+        </>
+      )}
     </div>
   );
 }
 
 // ========== RF-16: Moderación Panel ==========
-function ModerationPanel({ searchTerm, setSearchTerm }: { searchTerm: string; setSearchTerm: (val: string) => void }) {
+function ModerationPanel({ reports, stats, searchTerm, setSearchTerm, onReload }: { 
+  reports: any[]; 
+  stats: any;
+  searchTerm: string; 
+  setSearchTerm: (val: string) => void;
+  onReload: () => void;
+}) {
   const [filter, setFilter] = useState<"all" | "pending" | "resolved">("all");
   const [typeFilter, setTypeFilter] = useState<"all" | "list" | "comment" | "user">("all");
+  const [submitting, setSubmitting] = useState(false);
 
-  const filteredReports = MOCK_REPORTS.filter(r => 
+  const filteredReports = reports.filter(r => 
     (filter === "all" || r.status === filter) &&
-    (typeFilter === "all" || r.type === typeFilter) &&
-    (r.title.toLowerCase().includes(searchTerm.toLowerCase()) || r.author.toLowerCase().includes(searchTerm.toLowerCase()))
+    (typeFilter === "all" || r.targetType === typeFilter) &&
+    (r.reason?.toLowerCase().includes(searchTerm.toLowerCase()) || r.description?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const handleResolveReport = async (reportId: string) => {
+    try {
+      setSubmitting(true);
+      await api.put(`/api/moderation/reports/${reportId}`, { status: 'resolved' });
+      onReload();
+    } catch (error) {
+      console.error('Error resolviendo reporte:', error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getTargetTypeLabel = (type: string) => {
+    if (type === 'GameList') return 'Lista';
+    if (type === 'Comment') return 'Comentario';
+    if (type === 'User') return 'Usuario';
+    return 'Contenido';
+  };
+
+  const getTargetTypeBg = (type: string) => {
+    if (type === 'GameList') return "bg-blue-500/10 text-blue-400";
+    if (type === 'Comment') return "bg-purple-500/10 text-purple-400";
+    if (type === 'User') return "bg-amber-500/10 text-amber-400";
+    return "bg-slate-500/10 text-slate-400";
+  };
 
   return (
     <div className="space-y-4">
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { label: "Reportes Pendientes", value: "4", icon: Flag, color: "text-amber-400", bg: "bg-amber-500/10" },
-          { label: "Resueltos Hoy", value: "12", icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/10" },
-          { label: "Contenido Eliminado", value: "3", icon: Trash2, color: "text-red-400", bg: "bg-red-500/10" },
-          { label: "Usuarios Advertidos", value: "7", icon: AlertCircle, color: "text-orange-400", bg: "bg-orange-500/10" },
+          { label: "Reportes Pendientes", value: stats.pending, icon: Flag, color: "text-amber-400", bg: "bg-amber-500/10" },
+          { label: "Resueltos", value: stats.resolved, icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+          { label: "Contenido Eliminado", value: stats.deleted, icon: Trash2, color: "text-red-400", bg: "bg-red-500/10" },
+          { label: "Usuarios Advertidos", value: stats.warned, icon: AlertCircle, color: "text-orange-400", bg: "bg-orange-500/10" },
         ].map(stat => (
           <div key={stat.label} className={`${stat.bg} border border-slate-800 rounded-xl p-4`}>
             <div className="flex items-center gap-2 mb-2">
@@ -178,33 +248,40 @@ function ModerationPanel({ searchTerm, setSearchTerm }: { searchTerm: string; se
             </div>
           ) : (
             filteredReports.map(report => (
-              <div key={report.id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 hover:bg-slate-800 transition-colors">
+              <div key={report._id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 hover:bg-slate-800 transition-colors">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-xs px-2 py-1 rounded font-medium ${
-                        report.type === "list" ? "bg-blue-500/10 text-blue-400" :
-                        report.type === "comment" ? "bg-purple-500/10 text-purple-400" :
-                        "bg-amber-500/10 text-amber-400"
-                      }`}>
-                        {report.type === "list" ? "Lista" : report.type === "comment" ? "Comentario" : "Usuario"}
+                      <span className={`text-xs px-2 py-1 rounded font-medium ${getTargetTypeBg(report.targetType)}`}>
+                        {getTargetTypeLabel(report.targetType)}
                       </span>
                       <span className={`text-xs px-2 py-1 rounded font-medium ${
                         report.status === "pending" ? "bg-amber-500/10 text-amber-400" : "bg-emerald-500/10 text-emerald-400"
                       }`}>
                         {report.status === "pending" ? "Pendiente" : "Resuelto"}
                       </span>
-                      <span className="text-xs text-slate-600">{report.date}</span>
+                      <span className="text-xs text-slate-600">{new Date(report.createdAt).toLocaleDateString()}</span>
                     </div>
-                    <h4 className="text-sm font-bold text-white mb-1">{report.title}</h4>
-                    <p className="text-xs text-slate-400">Por <span className="text-slate-300 font-medium">{report.author}</span> • Motivo: {report.reason}</p>
+                    <h4 className="text-sm font-bold text-white mb-1">{report.type}</h4>
+                    <p className="text-xs text-slate-400">Tipo: <span className="text-slate-300 font-medium">{report.type}</span> • Motivo: {report.reason}</p>
+                    {report.description && (
+                      <p className="text-xs text-slate-500 mt-1">Descripción: {report.description}</p>
+                    )}
                   </div>
                   <div className="flex gap-2">
-                    <button className="p-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 rounded-lg transition-colors" title="Ver detalles">
+                    <button 
+                      className="p-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 rounded-lg transition-colors" 
+                      title="Ver detalles"
+                    >
                       <Eye size={16} />
                     </button>
-                    <button className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-lg transition-colors" title="Ocultar">
-                      <EyeOff size={16} />
+                    <button 
+                      onClick={() => handleResolveReport(report._id)}
+                      disabled={submitting || report.status === 'resolved'}
+                      className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 rounded-lg transition-colors disabled:opacity-50" 
+                      title="Resolver"
+                    >
+                      <CheckCircle2 size={16} />
                     </button>
                     <button className="p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-lg transition-colors" title="Eliminar">
                       <Trash2 size={16} />
@@ -221,23 +298,86 @@ function ModerationPanel({ searchTerm, setSearchTerm }: { searchTerm: string; se
 }
 
 // ========== RF-17: Gestión de Usuarios ==========
-function UsersPanel({ searchTerm, setSearchTerm }: { searchTerm: string; setSearchTerm: (val: string) => void }) {
+function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: { 
+  users: any[]; 
+  stats: any;
+  searchTerm: string; 
+  setSearchTerm: (val: string) => void;
+  onReload: () => void;
+}) {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "warned" | "silenced" | "banned">("all");
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [actionType, setActionType] = useState<"warn" | "silence" | "ban">("warn");
+  const [reason, setReason] = useState("");
+  const [duration, setDuration] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const filteredUsers = MOCK_USERS.filter(u =>
+  const filteredUsers = users.filter(u =>
     (statusFilter === "all" || u.status === statusFilter) &&
-    u.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (u.username?.toLowerCase().includes(searchTerm.toLowerCase()) || u.steamId?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const handleOpenActionModal = (user: any, action: "warn" | "silence" | "ban") => {
+    setSelectedUser(user);
+    setActionType(action);
+    setReason("");
+    setDuration("");
+    setShowActionModal(true);
+  };
+
+  const handleSubmitAction = async () => {
+    if (!selectedUser || !reason.trim()) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const payload: any = {
+        userId: selectedUser._id,
+        action: actionType,
+        reason: reason,
+      };
+
+      if (duration && (actionType === "silence" || actionType === "ban")) {
+        payload.duration = parseInt(duration);
+      }
+
+      await api.post('/api/moderation/actions', payload);
+      setShowActionModal(false);
+      onReload();
+    } catch (error) {
+      console.error('Error aplicando acción de moderación:', error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    if (status === "active") return "bg-emerald-500/10 text-emerald-400";
+    if (status === "warned") return "bg-amber-500/10 text-amber-400";
+    if (status === "silenced") return "bg-orange-500/10 text-orange-400";
+    if (status === "banned") return "bg-red-500/10 text-red-400";
+    return "bg-slate-500/10 text-slate-400";
+  };
+
+  const getStatusLabel = (status: string) => {
+    if (status === "active") return "Activo";
+    if (status === "warned") return "Advertido";
+    if (status === "silenced") return "Silenciado";
+    if (status === "banned") return "Baneado";
+    return status;
+  };
 
   return (
     <div className="space-y-4">
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { label: "Usuarios Activos", value: "1,247", icon: Users, color: "text-emerald-400", bg: "bg-emerald-500/10" },
-          { label: "Advertidos", value: "18", icon: AlertTriangle, color: "text-amber-400", bg: "bg-amber-500/10" },
-          { label: "Silenciados", value: "5", icon: MessageSquareOff, color: "text-orange-400", bg: "bg-orange-500/10" },
-          { label: "Baneados", value: "12", icon: Ban, color: "text-red-400", bg: "bg-red-500/10" },
+          { label: "Usuarios Activos", value: stats.active, icon: Users, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+          { label: "Advertidos", value: stats.warned, icon: AlertTriangle, color: "text-amber-400", bg: "bg-amber-500/10" },
+          { label: "Silenciados", value: stats.silenced, icon: MessageSquareOff, color: "text-orange-400", bg: "bg-orange-500/10" },
+          { label: "Baneados", value: stats.banned, icon: Ban, color: "text-red-400", bg: "bg-red-500/10" },
         ].map(stat => (
           <div key={stat.label} className={`${stat.bg} border border-slate-800 rounded-xl p-4`}>
             <div className="flex items-center gap-2 mb-2">
@@ -282,52 +422,129 @@ function UsersPanel({ searchTerm, setSearchTerm }: { searchTerm: string; setSear
 
         {/* Users List */}
         <div className="space-y-2">
-          {filteredUsers.map(user => (
-            <div key={user.id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 hover:bg-slate-800 transition-colors">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h4 className="text-sm font-bold text-white">{user.name}</h4>
-                    <span className={`text-xs px-2 py-1 rounded font-medium ${
-                      user.status === "active" ? "bg-emerald-500/10 text-emerald-400" :
-                      user.status === "warned" ? "bg-amber-500/10 text-amber-400" :
-                      user.status === "silenced" ? "bg-orange-500/10 text-orange-400" :
-                      "bg-red-500/10 text-red-400"
-                    }`}>
-                      {user.status}
-                    </span>
-                    {user.reports > 0 && (
-                      <span className="text-xs px-2 py-1 rounded font-medium bg-red-500/10 text-red-400">
-                        {user.reports} reportes
+          {filteredUsers.length === 0 ? (
+            <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-8 text-center">
+              <p className="text-slate-500">No se encontraron usuarios con los filtros aplicados</p>
+            </div>
+          ) : (
+            filteredUsers.map(user => (
+              <div key={user._id} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 hover:bg-slate-800 transition-colors">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="text-sm font-bold text-white">{user.username}</h4>
+                      <span className={`text-xs px-2 py-1 rounded font-medium ${getStatusColor(user.status)}`}>
+                        {getStatusLabel(user.status)}
                       </span>
-                    )}
+                      {user.moderationHistory && user.moderationHistory.length > 0 && (
+                        <span className="text-xs px-2 py-1 rounded font-medium bg-red-500/10 text-red-400">
+                          {user.moderationHistory.length} acción{user.moderationHistory.length !== 1 ? 'es' : ''}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      SteamID: {user.steamId} • Miembro desde {new Date(user.createdAt).toLocaleDateString()}
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-400">
-                    Última actividad: {user.lastActive} • Miembro desde {user.joined}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button className="p-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 rounded-lg transition-colors" title="Ver historial">
-                    <FileText size={16} />
-                  </button>
-                  <button className="p-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/20 text-yellow-400 rounded-lg transition-colors" title="Advertir">
-                    <AlertOctagon size={16} />
-                  </button>
-                  <button className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-lg transition-colors" title="Silenciar">
-                    <MessageSquareOff size={16} />
-                  </button>
-                  <button className="p-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 text-orange-400 rounded-lg transition-colors" title="Suspender">
-                    <UserX size={16} />
-                  </button>
-                  <button className="p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-lg transition-colors" title="Banear">
-                    <Ban size={16} />
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                      className="p-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 rounded-lg transition-colors" 
+                      title="Ver historial"
+                    >
+                      <FileText size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleOpenActionModal(user, "warn")}
+                      disabled={user.status === "banned"}
+                      className="p-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/20 text-yellow-400 rounded-lg transition-colors disabled:opacity-50" 
+                      title="Advertir"
+                    >
+                      <AlertOctagon size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleOpenActionModal(user, "silence")}
+                      disabled={user.status === "banned"}
+                      className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-lg transition-colors disabled:opacity-50" 
+                      title="Silenciar"
+                    >
+                      <MessageSquareOff size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleOpenActionModal(user, "ban")}
+                      title="Banear"
+                      className="p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-lg transition-colors"
+                    >
+                      <Ban size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
+
+      {/* Action Modal */}
+      {showActionModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-white mb-4">
+              {actionType === "warn" && "Advertir usuario"}
+              {actionType === "silence" && "Silenciar usuario"}
+              {actionType === "ban" && "Banear usuario"}
+            </h3>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Usuario: {selectedUser.username}</label>
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-400 block mb-2">Motivo *</label>
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Explica la razón de esta acción..."
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  rows={3}
+                />
+              </div>
+
+              {(actionType === "silence" || actionType === "ban") && (
+                <div>
+                  <label className="text-sm text-slate-400 block mb-2">
+                    Duración en días {actionType === "ban" ? "(dejar vacío para permanente)" : ""}
+                  </label>
+                  <input
+                    type="number"
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                    placeholder="Ej: 7, 30, etc"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowActionModal(false)}
+                disabled={submitting}
+                className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSubmitAction}
+                disabled={submitting || !reason.trim()}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50"
+              >
+                {submitting ? "Procesando..." : "Confirmar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
