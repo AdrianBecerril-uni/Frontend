@@ -27,6 +27,7 @@ export function Layout() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const isAdmin = user?.role === "admin" || user?.isAdmin === true;
+  const isLoginPage = location.pathname === "/login";
 
   const navItems = [
     { name: "Inicio", path: "/", icon: Home },
@@ -113,7 +114,7 @@ export function Layout() {
               <LogOut size={20} />
               <span className="text-sm">Cerrar Sesión</span>
             </button>
-          ) : (
+          ) : !isLoginPage ? (
             <Link
               to="/login"
               className="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-blue-600/20 rounded-xl transition-colors border border-dashed border-slate-700 hover:border-blue-500/50"
@@ -121,6 +122,14 @@ export function Layout() {
               <LogIn size={20} />
               <span className="text-sm">Iniciar Sesión</span>
             </Link>
+          ) : (
+            <div
+              aria-hidden="true"
+              className="invisible flex items-center gap-3 px-4 py-3 rounded-xl border border-dashed border-slate-700"
+            >
+              <LogIn size={20} />
+              <span className="text-sm">Iniciar Sesión</span>
+            </div>
           )}
         </div>
       </aside>
@@ -202,7 +211,7 @@ export function Layout() {
                   >
                     Cerrar Sesión
                   </button>
-                ) : (
+                ) : !isLoginPage ? (
                   <Link
                     to="/login"
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -210,6 +219,13 @@ export function Layout() {
                   >
                     Iniciar Sesión con Steam
                   </Link>
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="invisible block p-4 text-center border border-blue-900/50 rounded-xl"
+                  >
+                    Iniciar Sesión con Steam
+                  </div>
                 )}
               </div>
             </nav>

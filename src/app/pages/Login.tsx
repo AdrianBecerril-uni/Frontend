@@ -175,6 +175,7 @@ export function Login() {
               Iniciar Sesión con Steam
             </button>
 
+            {/*
             <button
               onClick={login}
               className="w-full flex items-center gap-4 h-[82px] bg-[#171a21] border border-[#2a475e] rounded-[14px] px-6 text-[#c5c3c0] font-bold text-base hover:bg-[#1e2535] hover:border-[#3d6b8f] transition-colors shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1),0px_4px_6px_-4px_rgba(0,0,0,0.1)]"
@@ -190,6 +191,7 @@ export function Login() {
                 Administrador
               </span>
             </button>
+            */}
           </div>
 
           {/* Info boxes */}
