@@ -45,10 +45,17 @@ export function Admin() {
       setUsers(usersData);
 
       if (reportsResult.status === 'rejected' || usersResult.status === 'rejected') {
+        if (reportsResult.status === 'rejected') {
+          console.error('Error cargando reportes:', reportsResult.reason);
+        }
+        if (usersResult.status === 'rejected') {
+          console.error('Error cargando usuarios:', usersResult.reason);
+        }
+
         const reportsError = reportsResult.status === 'rejected' ? 'reportes' : '';
         const usersError = usersResult.status === 'rejected' ? 'usuarios' : '';
         const separator = reportsError && usersError ? ' y ' : '';
-        setLoadError(`No se pudieron cargar ${reportsError}${separator}${usersError}. Revisa permisos admin/token y backend.`);
+        setLoadError(`No se pudieron cargar ${reportsError}${separator}${usersError}. Intenta de nuevo en unos segundos.`);
       }
 
       // Calcular stats
