@@ -771,7 +771,7 @@ export function Profile() {
                 </p>
               </div>
               {achievement.unlocked && (
-                <Check size={14} className=”text-[#00d492]” />
+                <Check size={14} className="text-[#00d492]" />
               )}
             </article>
           ))}
