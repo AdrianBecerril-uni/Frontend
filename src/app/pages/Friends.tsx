@@ -20,10 +20,16 @@ import {
   Gem,
   Shield,
   Search,
+  Bell,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { Navigate } from "react-router";
-import api, { getCommonGames } from "../../lib/api";
+import api, {
+  getCommonGames,
+  getMyGamingSessions,
+  getNotifications,
+  cancelGamingSession,
+} from "../../lib/api";
 import {
   SessionBooking,
   UpcomingSessions,
@@ -43,6 +49,36 @@ interface Friend {
 interface CommonGame extends SessionGame {
   owners: number;
   lastPlayed?: number;
+}
+
+interface SessionApiItem {
+  _id: string;
+  game: {
+    appId?: number;
+    appid?: number;
+    name: string;
+    headerImage?: string;
+  };
+  date: string;
+  time: string;
+  participants?: Array<{
+    user?: {
+      steamId?: string;
+      username?: string;
+      avatar?: string;
+    };
+    status?: "pending" | "accepted" | "declined";
+  }>;
+  status?: "scheduled" | "cancelled";
+}
+
+interface NotificationItem {
+  _id: string;
+  title: string;
+  message: string;
+  type: string;
+  createdAt: string;
+  readAt?: string | null;
 }
 
 type Tab = "amigos" | "analitica" | "sesiones";
@@ -269,7 +305,10 @@ function AnalyticsPanel({
   const hoursSorted = [...peopleWithTime].sort(
     (a, b) => b.time.totalHours - a.time.totalHours,
   );
-  const maxHours = Math.max(...peopleWithTime.map((p) => p.time.totalHours), 100);
+  const maxHours = Math.max(
+    ...peopleWithTime.map((p) => p.time.totalHours),
+    100,
+  );
   const bestTime = hoursSorted[0]?.name || "-";
   const bestTimeDays = Math.floor((hoursSorted[0]?.time.totalHours || 0) / 24);
   const bestTimeYears = ((bestTimeDays || 0) / 365).toFixed(1);
@@ -1422,6 +1461,9 @@ export function Friends() {
   const [scheduledSessions, setScheduledSessions] = useState<ScheduledSession[]>(
     [],
   );
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
@@ -1465,6 +1507,67 @@ export function Friends() {
 
     loadCommonGames();
   }, [user?.steamid, selectedIds]);
+
+  const normalizeSession = (session: SessionApiItem): ScheduledSession => {
+    const participantFriends =
+      session.participants?.map((p, index) => ({
+        steamId: p.user?.steamId || `unknown-${index}`,
+        username: p.user?.username || "Usuario",
+        avatar: p.user?.avatar || "https://via.placeholder.com/64?text=U",
+        status: p.status === "accepted" ? 1 : 0,
+      })) || [];
+
+    return {
+      id: session._id,
+      game: {
+        appid: session.game?.appId || session.game?.appid || 0,
+        name: session.game?.name || "Juego",
+        headerImage: session.game?.headerImage,
+      },
+      date: session.date,
+      time: session.time,
+      friends: participantFriends,
+      confirmed: session.status !== "cancelled",
+    };
+  };
+
+  const loadSessions = async () => {
+    if (!user?.steamid) return;
+
+    setLoadingSessions(true);
+    try {
+      const res = await getMyGamingSessions();
+      const sessions = (res.data?.sessions || []).map(normalizeSession);
+      setScheduledSessions(sessions);
+    } catch (error) {
+      console.error("Error loading sessions:", error);
+      setScheduledSessions([]);
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  const loadNotifications = async () => {
+    if (!user?.steamid) return;
+
+    setLoadingNotifications(true);
+    try {
+      const res = await getNotifications({ limit: 20 });
+      setNotifications(res.data?.notifications || []);
+    } catch (error) {
+      console.error("Error loading notifications:", error);
+      setNotifications([]);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "sesiones" && user?.steamid) {
+      loadSessions();
+      loadNotifications();
+    }
+  }, [activeTab, user?.steamid]);
 
   if (!user) return <Navigate to="/login" replace />;
 
@@ -1516,6 +1619,8 @@ export function Friends() {
     friend.username.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
+  const unreadCount = notifications.filter((n) => !n.readAt).length;
+
   const tabs: { id: Tab; label: string; icon: ReactNode }[] = [
     { id: "amigos", label: "Amigos", icon: <Users size={18} /> },
     { id: "analitica", label: "Analítica", icon: <BarChart2 size={18} /> },
@@ -1534,21 +1639,34 @@ export function Friends() {
           </p>
         </div>
 
-        <div className="flex items-center p-[7px] gap-1 bg-[#0f172b] border border-[#1d293d] rounded-[14px] shadow-sm self-start sm:self-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-5 py-2 rounded-[10px] text-sm font-semibold transition-all whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "bg-[#155dfc] text-white shadow-[0px_10px_15px_0px_rgba(28,57,142,0.2),0px_4px_6px_0px_rgba(28,57,142,0.2)]"
-                  : "text-[#90a1b9] hover:text-white"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[rgba(15,23,43,0.8)] border border-[#1d293d]">
+              <Bell size={18} className="text-[#90a1b9]" />
+            </div>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#ef4444] text-white text-[10px] font-bold flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center p-[7px] gap-1 bg-[#0f172b] border border-[#1d293d] rounded-[14px] shadow-sm self-start sm:self-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-5 py-2 rounded-[10px] text-sm font-semibold transition-all whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? "bg-[#155dfc] text-white shadow-[0px_10px_15px_0px_rgba(28,57,142,0.2),0px_4px_6px_0px_rgba(28,57,142,0.2)]"
+                    : "text-[#90a1b9] hover:text-white"
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1589,7 +1707,9 @@ export function Friends() {
             <div className="py-8 text-center">
               <Users size={32} className="text-[#314158] mx-auto mb-2" />
               <p className="text-[#62748e] text-xs">
-                {friends.length === 0 ? "Lista vacía o privada" : "No se encontraron amigos"}
+                {friends.length === 0
+                  ? "Lista vacía o privada"
+                  : "No se encontraron amigos"}
               </p>
             </div>
           ) : (
@@ -1753,6 +1873,69 @@ export function Friends() {
                 </div>
               </div>
 
+              <div className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[24px] p-5">
+                  <h3 className="text-white font-bold text-lg mb-3">
+                    Invitaciones y notificaciones
+                  </h3>
+
+                  {loadingNotifications ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="animate-spin text-blue-500" size={24} />
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <p className="text-[#62748e] text-sm">
+                      No tienes notificaciones.
+                    </p>
+                  ) : (
+                    <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+                      {notifications.map((n) => (
+                        <div
+                          key={n._id}
+                          className="rounded-[16px] border border-[rgba(49,65,88,0.35)] bg-[rgba(29,41,61,0.35)] p-4"
+                        >
+                          <p className="text-white text-sm font-semibold">
+                            {n.title}
+                          </p>
+                          <p className="text-[#90a1b9] text-xs mt-1">
+                            {n.message}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-[rgba(15,23,43,0.8)] border border-[#1d293d] rounded-[24px] p-5">
+                  <h3 className="text-white font-bold text-lg mb-3">
+                    Sesiones donde participas
+                  </h3>
+
+                  {loadingSessions ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="animate-spin text-blue-500" size={24} />
+                    </div>
+                  ) : scheduledSessions.length === 0 ? (
+                    <p className="text-[#62748e] text-sm">
+                      No hay sesiones guardadas todavía.
+                    </p>
+                  ) : (
+                    <UpcomingSessions
+                      sessions={scheduledSessions}
+                      onRemove={async (id: string) => {
+                        try {
+                          await cancelGamingSession(id);
+                          await loadSessions();
+                          await loadNotifications();
+                        } catch (error) {
+                          console.error("Error cancelling session:", error);
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+
               {selectedIds.size === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 bg-slate-900/30 border border-dashed border-slate-800 rounded-3xl">
                   <Users size={64} className="text-slate-700 mb-6" />
@@ -1774,7 +1957,8 @@ export function Friends() {
                     No hay juegos en común visibles
                   </h3>
                   <p className="text-slate-500">
-                    Puede que algún perfil sea privado o que no compartáis biblioteca.
+                    Puede que algún perfil sea privado o que no compartáis
+                    biblioteca.
                   </p>
                 </div>
               ) : (
@@ -1825,19 +2009,6 @@ export function Friends() {
                   ))}
                 </div>
               )}
-
-              {scheduledSessions.length > 0 && (
-                <div className="mt-8">
-                  <UpcomingSessions
-                    sessions={scheduledSessions}
-                    onRemove={(id: string) =>
-                      setScheduledSessions((prev) =>
-                        prev.filter((s) => s.id !== id),
-                      )
-                    }
-                  />
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -1848,8 +2019,9 @@ export function Friends() {
           game={bookingGame}
           selectedFriends={friends.filter((f) => selectedIds.has(f.steamId))}
           onClose={() => setBookingGame(null)}
-          onConfirm={(session) => {
-            setScheduledSessions((prev) => [...prev, session]);
+          onConfirm={async () => {
+            await loadSessions();
+            await loadNotifications();
             setBookingGame(null);
           }}
           existingSessions={scheduledSessions}

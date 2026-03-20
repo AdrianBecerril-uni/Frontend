@@ -11,8 +11,10 @@ import {
   Gamepad2,
   ArrowLeft,
   PartyPopper,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { createGamingSession } from "../../lib/api";
 
 export interface SessionFriend {
   steamId: string;
@@ -40,7 +42,7 @@ interface Props {
   game: SessionGame;
   selectedFriends: SessionFriend[];
   onClose: () => void;
-  onConfirm: (session: ScheduledSession) => void;
+  onConfirm: () => Promise<void> | void;
   existingSessions: ScheduledSession[];
 }
 
@@ -79,6 +81,13 @@ const MONTHS_ES = [
   "Diciembre",
 ];
 
+function buildScheduledAt(dateStr: string, timeStr: string) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  const localDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  return localDate.toISOString();
+}
+
 export function SessionBooking({
   game,
   selectedFriends,
@@ -93,6 +102,7 @@ export function SessionBooking({
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [step, setStep] = useState<"date" | "time" | "confirm">("date");
   const [notifyFriends, setNotifyFriends] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const calendarDays = useMemo(() => {
     const firstDay = new Date(currentYear, currentMonth, 1);
@@ -193,24 +203,53 @@ export function SessionBooking({
     setStep("confirm");
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!selectedDate || !selectedTime) return;
+    if (selectedFriends.length === 0) {
+      toast.error("Selecciona al menos un amigo para crear la sesión.");
+      return;
+    }
 
-    const session: ScheduledSession = {
-      id: `session-${Date.now()}`,
-      game,
-      date: selectedDate,
-      time: selectedTime,
-      friends: selectedFriends,
-      confirmed: true,
-    };
+    setSaving(true);
 
-    onConfirm(session);
+    try {
+      const payload = {
+        game: {
+          appid: game.appid,
+          name: game.name,
+          headerImage:
+            game.headerImage ||
+            `https://cdn.cloudflare.steamstatic.com/steam/apps/${game.appid}/header.jpg`,
+        },
+        date: selectedDate,
+        time: selectedTime,
+        scheduledAt: buildScheduledAt(selectedDate, selectedTime),
+        participants: selectedFriends.map((friend) => ({
+          steamId: friend.steamId,
+          username: friend.username,
+          avatar: friend.avatar,
+        })),
+        notes: "",
+        notifyFriends,
+      };
 
-    toast.success(
-      `Sesión programada: ${game.name} el ${formatDateDisplay(selectedDate)} a las ${selectedTime}`,
-      { duration: 5000 },
-    );
+      await createGamingSession(payload);
+      await onConfirm();
+
+      toast.success(
+        `Sesión programada: ${game.name} el ${formatDateDisplay(selectedDate)} a las ${selectedTime}`,
+        { duration: 5000 },
+      );
+
+      onClose();
+    } catch (error: any) {
+      console.error("Error creating gaming session:", error);
+      toast.error(
+        error?.response?.data?.error || "No se pudo crear la sesión.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const formatDateDisplay = (dateStr: string) => {
@@ -233,7 +272,7 @@ export function SessionBooking({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={saving ? undefined : onClose}
       />
 
       <div className="relative bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-300">
@@ -245,6 +284,7 @@ export function SessionBooking({
                 <button
                   onClick={() => setStep(step === "confirm" ? "time" : "date")}
                   className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
+                  disabled={saving}
                 >
                   <ArrowLeft size={18} />
                 </button>
@@ -264,7 +304,8 @@ export function SessionBooking({
 
             <button
               onClick={onClose}
-              className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-400 hover:text-white"
+              disabled={saving}
+              className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-400 hover:text-white disabled:opacity-50"
             >
               <X size={18} />
             </button>
@@ -345,6 +386,7 @@ export function SessionBooking({
                 <button
                   onClick={prevMonth}
                   className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
+                  disabled={saving}
                 >
                   <ChevronLeft size={18} />
                 </button>
@@ -354,6 +396,7 @@ export function SessionBooking({
                 <button
                   onClick={nextMonth}
                   className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
+                  disabled={saving}
                 >
                   <ChevronRight size={18} />
                 </button>
@@ -379,7 +422,7 @@ export function SessionBooking({
                     <button
                       key={i}
                       onClick={() => handleDateSelect(day.dateStr, day.isPast)}
-                      disabled={day.isPast}
+                      disabled={day.isPast || saving}
                       className={`relative h-10 rounded-xl text-sm font-medium transition-all duration-200 ${
                         isSelected
                           ? "bg-blue-600 text-white shadow-lg shadow-blue-900/30 scale-105"
@@ -403,15 +446,6 @@ export function SessionBooking({
                   );
                 })}
               </div>
-
-              <div className="flex items-center gap-4 mt-4 pt-3 border-t border-slate-800">
-                <span className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                  <span className="w-2 h-2 rounded-full bg-blue-400" /> Hoy
-                </span>
-                <span className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Sesión programada
-                </span>
-              </div>
             </div>
           )}
 
@@ -430,6 +464,7 @@ export function SessionBooking({
                     <button
                       key={time}
                       onClick={() => handleTimeSelect(time)}
+                      disabled={saving}
                       className={`relative py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                         isSelected
                           ? "bg-blue-600 text-white shadow-lg shadow-blue-900/30 scale-105"
@@ -447,10 +482,6 @@ export function SessionBooking({
                   );
                 })}
               </div>
-
-              <p className="text-[10px] text-slate-600 mt-3 flex items-center gap-1">
-                🔥 Horas punta de actividad del grupo (18:00–23:00)
-              </p>
             </div>
           )}
 
@@ -462,10 +493,6 @@ export function SessionBooking({
                     src={gameImage}
                     alt={game.name}
                     className="w-24 h-14 rounded-xl object-cover shadow-lg"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        "https://via.placeholder.com/150x100?text=Game";
-                    }}
                   />
                   <div className="flex-1">
                     <h3 className="text-base font-bold text-white">{game.name}</h3>
@@ -538,6 +565,7 @@ export function SessionBooking({
 
                 <button
                   onClick={() => setNotifyFriends(!notifyFriends)}
+                  disabled={saving}
                   className={`w-11 h-6 rounded-full transition-colors relative ${
                     notifyFriends ? "bg-blue-600" : "bg-slate-700"
                   }`}
@@ -552,10 +580,20 @@ export function SessionBooking({
 
               <button
                 onClick={handleConfirm}
-                className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-900/30 flex items-center justify-center gap-2 active:scale-[0.98]"
+                disabled={saving}
+                className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-900/30 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-60"
               >
-                <Gamepad2 size={18} />
-                Confirmar Sesión
+                {saving ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Gamepad2 size={18} />
+                    Confirmar Sesión
+                  </>
+                )}
               </button>
             </div>
           )}
@@ -592,7 +630,7 @@ export function UpcomingSessions({
         {sessions.map((session) => (
           <div
             key={session.id}
-            className="flex items-center gap-4 bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50 hover:border-blue-500/30 transition-all group"
+            className="flex items-center gap-4 bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50"
           >
             <img
               src={
@@ -601,10 +639,6 @@ export function UpcomingSessions({
               }
               alt={session.game.name}
               className="w-20 h-12 rounded-lg object-cover shadow-md"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src =
-                  "https://via.placeholder.com/150x100?text=Game";
-              }}
             />
             <div className="flex-1 min-w-0">
               <h4 className="text-sm font-bold text-white truncate">
@@ -632,11 +666,6 @@ export function UpcomingSessions({
                   title={f.username}
                 />
               ))}
-              {session.friends.length > 3 && (
-                <div className="w-7 h-7 rounded-full border-2 border-slate-800 bg-slate-700 flex items-center justify-center text-[9px] text-slate-300 font-bold">
-                  +{session.friends.length - 3}
-                </div>
-              )}
             </div>
 
             <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20 font-bold whitespace-nowrap">
@@ -646,7 +675,7 @@ export function UpcomingSessions({
 
             <button
               onClick={() => onRemove(session.id)}
-              className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+              className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
               title="Cancelar sesión"
             >
               <X size={14} />
