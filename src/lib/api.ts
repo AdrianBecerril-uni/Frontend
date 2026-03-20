@@ -21,4 +21,35 @@ api.interceptors.request.use((config) => {
 export const getCommonGames = (steamIds: string[]) =>
   api.post("/api/steam/common-games", { steamIds });
 
+// --- Gaming Sessions ---
+export const createGamingSession = (payload: {
+  game: { appId?: number; appid?: number; name: string; headerImage?: string };
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  scheduledAt: string; // ISO string
+  participants: { steamId: string; username: string; avatar: string }[];
+  notes?: string;
+  notifyFriends?: boolean;
+}) => api.post("/api/sessions", payload);
+
+export const getMyGamingSessions = () => api.get("/api/sessions/mine");
+
+export const respondToGamingSession = (
+  id: string,
+  response: "accepted" | "declined",
+) => api.patch(`/api/sessions/${id}/respond`, { response });
+
+export const cancelGamingSession = (id: string) =>
+  api.patch(`/api/sessions/${id}/cancel`);
+
+// --- Notifications ---
+export const getNotifications = (params?: { unread?: boolean; limit?: number }) =>
+  api.get("/api/notifications", { params });
+
+export const markNotificationRead = (id: string) =>
+  api.patch(`/api/notifications/${id}/read`);
+
+export const markAllNotificationsRead = () =>
+  api.patch("/api/notifications/read-all");
+
 export default api;
