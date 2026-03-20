@@ -18,6 +18,7 @@ export function Admin() {
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({ pending: 0, resolved: 0, deleted: 0, warned: 0, active: 0, silenced: 0, banned: 0 });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   if (!user?.isAdmin && user?.role !== 'admin') {
     return <Navigate to="/" replace />;
@@ -30,21 +31,33 @@ export function Admin() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [reportsRes, usersRes] = await Promise.all([
+      setLoadError("");
+
+      const [reportsResult, usersResult] = await Promise.allSettled([
         api.get('/api/moderation/reports?limit=50'),
         api.get('/api/moderation/users?limit=50'),
       ]);
 
-      setReports(reportsRes.data.reports || []);
-      setUsers(usersRes.data.users || []);
+      const reportsData = reportsResult.status === 'fulfilled' ? reportsResult.value.data.reports || [] : [];
+      const usersData = usersResult.status === 'fulfilled' ? usersResult.value.data.users || [] : [];
+
+      setReports(reportsData);
+      setUsers(usersData);
+
+      if (reportsResult.status === 'rejected' || usersResult.status === 'rejected') {
+        const reportsError = reportsResult.status === 'rejected' ? 'reportes' : '';
+        const usersError = usersResult.status === 'rejected' ? 'usuarios' : '';
+        const separator = reportsError && usersError ? ' y ' : '';
+        setLoadError(`No se pudieron cargar ${reportsError}${separator}${usersError}. Revisa permisos admin/token y backend.`);
+      }
 
       // Calcular stats
-      const pendingCount = reportsRes.data.reports?.filter(r => r.status === 'pending').length || 0;
-      const resolvedCount = reportsRes.data.reports?.filter(r => r.status === 'resolved').length || 0;
-      const warnedCount = usersRes.data.users?.filter(u => u.status === 'warned').length || 0;
-      const silencedCount = usersRes.data.users?.filter(u => u.status === 'silenced').length || 0;
-      const bannedCount = usersRes.data.users?.filter(u => u.status === 'banned').length || 0;
-      const activeCount = usersRes.data.users?.filter(u => u.status === 'active').length || 0;
+      const pendingCount = reportsData.filter(r => r.status === 'pending').length || 0;
+      const resolvedCount = reportsData.filter(r => r.status === 'resolved').length || 0;
+      const warnedCount = usersData.filter(u => u.status === 'warned').length || 0;
+      const silencedCount = usersData.filter(u => u.status === 'silenced').length || 0;
+      const bannedCount = usersData.filter(u => u.status === 'banned').length || 0;
+      const activeCount = usersData.filter(u => u.status === 'active').length || 0;
 
       setStats({
         pending: pendingCount,
@@ -55,8 +68,6 @@ export function Admin() {
         silenced: silencedCount,
         banned: bannedCount,
       });
-    } catch (error) {
-      console.error('Error cargando datos admin:', error);
     } finally {
       setLoading(false);
     }
@@ -113,6 +124,17 @@ export function Admin() {
       {loading && (
         <div className="text-center py-12">
           <p className="text-slate-400">Cargando datos...</p>
+        </div>
+      )}
+      {!loading && loadError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+          <p className="text-sm text-red-300">{loadError}</p>
+          <button
+            onClick={loadData}
+            className="mt-3 px-3 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+          >
+            Reintentar
+          </button>
         </div>
       )}
       {!loading && (
