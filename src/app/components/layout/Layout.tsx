@@ -123,7 +123,13 @@ export function Layout() {
               <span className="text-sm">Iniciar Sesión</span>
             </Link>
           ) : (
-            <div aria-hidden="true" className="h-12" />
+            <div
+              aria-hidden="true"
+              className="invisible flex items-center gap-3 px-4 py-3 rounded-xl border border-dashed border-slate-700"
+            >
+              <LogIn size={20} />
+              <span className="text-sm">Iniciar Sesión</span>
+            </div>
           )}
         </div>
       </aside>
@@ -214,7 +220,12 @@ export function Layout() {
                     Iniciar Sesión con Steam
                   </Link>
                 ) : (
-                  <div aria-hidden="true" className="h-[58px]" />
+                  <div
+                    aria-hidden="true"
+                    className="invisible block p-4 text-center border border-blue-900/50 rounded-xl"
+                  >
+                    Iniciar Sesión con Steam
+                  </div>
                 )}
               </div>
             </nav>
