@@ -47,48 +47,237 @@ export function AssistantModal() {
     scrollToBottom();
   }, [messages, isOpen, loading]);
 
-  // Capture screen context as text
+  // Capture screen context as text - UNIVERSAL para TODAS las páginas de la app
   const captureScreenContext = (): string => {
     const context: string[] = [];
-
-    // 1. Current page/route
     const path = window.location.pathname;
-    context.push(`Página actual: ${path}`);
 
-    // 2. Page title
-    const pageTitle = document.title;
-    if (pageTitle) {
-      context.push(`Título de página: ${pageTitle}`);
+    // ========== INFORMACIÓN BÁSICA (todas las páginas) ==========
+    context.push(`Ubicación: ${path}`);
+    context.push(`Título: ${document.title}`);
+
+    const mainHeading = document.querySelector('h1');
+    if (mainHeading?.textContent?.trim()) {
+      context.push(`\nPágina: ${mainHeading.textContent.trim()}`);
     }
 
-    // 3. Main headings visible (h1, h2)
-    const headings = Array.from(document.querySelectorAll('h1, h2, h3'))
-      .slice(0, 10)
-      .map(h => h.textContent?.trim())
-      .filter(Boolean);
-    if (headings.length > 0) {
-      context.push(`\nEncabezados visibles:\n${headings.map(h => `- ${h}`).join('\n')}`);
+    const subtitle = document.querySelector('h1 + p');
+    if (subtitle?.textContent?.trim()) {
+      context.push(`Subtítulo: ${subtitle.textContent.trim()}`);
     }
 
-    // 4. Game titles visible (common class names in gaming apps)
-    const gameElements = Array.from(
-      document.querySelectorAll('[class*="game"], [class*="title"], [data-game-name]')
+    // ========== TABS/FILTROS ACTIVOS ==========
+    const activeTabs = Array.from(
+      document.querySelectorAll('[class*="bg-[#155dfc]"], [class*="bg-[#2b7fff]"], button[class*="shadow"]')
     )
-      .slice(0, 15)
       .map(el => el.textContent?.trim())
-      .filter(text => text && text.length > 3 && text.length < 100);
+      .filter(text => text && text.length > 0 && text.length < 50);
 
-    if (gameElements.length > 0) {
-      const uniqueGames = [...new Set(gameElements)];
-      context.push(`\nJuegos/Elementos visibles:\n${uniqueGames.slice(0, 10).map(g => `- ${g}`).join('\n')}`);
+    if (activeTabs.length > 0) {
+      context.push(`\nTabs/Filtros activos: ${[...new Set(activeTabs)].join(', ')}`);
     }
 
-    // 5. Any text content from main area (limited sample)
-    const mainContent = document.querySelector('main, [role="main"], .content');
-    if (mainContent) {
-      const text = mainContent.textContent?.slice(0, 500).trim();
-      if (text && text.length > 50) {
-        context.push(`\nContenido principal (muestra): ${text.slice(0, 300)}...`);
+    // ========== CATEGORÍAS/CHIPS ==========
+    const chips = Array.from(document.querySelectorAll('[class*="rounded-full"]'))
+      .map(chip => chip.textContent?.trim())
+      .filter(text => text && text.length > 0 && text.length < 40);
+
+    if (chips.length > 3) {
+      context.push(`Categorías: ${[...new Set(chips)].join(', ')}`);
+    }
+
+    // ========== BÚSQUEDA ACTIVA ==========
+    const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+    if (searchInput?.value?.trim()) {
+      context.push(`Búsqueda: "${searchInput.value}"`);
+    }
+
+    // ========== DETECTAR Y CAPTURAR CONTENIDO ESPECÍFICO POR TIPO ==========
+
+    // 1. LISTAS (página /lists o cards de listas)
+    const listCards = Array.from(document.querySelectorAll('a[href^="/lists/"]'));
+    if (listCards.length > 0) {
+      context.push(`\n\n========== LISTAS (${listCards.length}) ==========`);
+      listCards.forEach((card, idx) => {
+        const title = card.querySelector('h3')?.textContent?.trim() || 'Sin título';
+        const badges = Array.from(card.querySelectorAll('span[class*="font-bold"]'))
+          .map(b => b.textContent?.trim()).filter(Boolean);
+        const category = card.querySelector('span[class*="text-[#51a2ff]"]')?.textContent?.trim();
+        const author = card.textContent?.match(/por\s+(.+?)(?=\d|\s*$)/)?.[1]?.trim();
+        const description = card.querySelector('p[class*="line-clamp"]')?.textContent?.trim();
+        const likes = card.textContent?.match(/(\d+)/)?.[1];
+        const games = card.textContent?.match(/(\d+)\s*juegos?/i)?.[1];
+
+        context.push(`\n${idx + 1}. ${title}`);
+        if (badges.length > 0) context.push(`   Badges: ${badges.join(', ')}`);
+        if (category) context.push(`   Categoría: ${category}`);
+        if (author) context.push(`   Autor: ${author}`);
+        if (description) context.push(`   Descripción: ${description}`);
+        if (likes || games) context.push(`   Stats: ${likes ? `${likes} likes` : ''} ${games ? `${games} juegos` : ''}`.trim());
+      });
+      context.push(`========== FIN LISTAS ==========\n`);
+    }
+
+    // 2. DETALLE DE LISTA (página /lists/:id)
+    if (path.includes('/lists/') && !path.endsWith('/lists')) {
+      const listTitle = document.querySelector('h1, h2')?.textContent?.trim();
+      const listDesc = document.querySelector('p[class*="text-"]')?.textContent?.trim();
+      const gameItems = Array.from(document.querySelectorAll('[class*="game"], li, [class*="item"]'))
+        .map(el => el.textContent?.trim())
+        .filter(text => text && text.length > 5 && text.length < 200);
+
+      if (listTitle) {
+        context.push(`\n\n========== DETALLE DE LISTA ==========`);
+        context.push(`Título: ${listTitle}`);
+        if (listDesc) context.push(`Descripción: ${listDesc}`);
+        if (gameItems.length > 0) {
+          context.push(`\nJuegos en la lista (${gameItems.length}):`);
+          gameItems.forEach((game, idx) => context.push(`${idx + 1}. ${game}`));
+        }
+        context.push(`========== FIN DETALLE ==========\n`);
+      }
+    }
+
+    // 3. AMIGOS (página /friends)
+    if (path.includes('/friends')) {
+      const friendElements = Array.from(document.querySelectorAll('[class*="friend"], [class*="player"], [class*="user"]'));
+      if (friendElements.length > 0) {
+        context.push(`\n\n========== AMIGOS (${friendElements.length}) ==========`);
+        friendElements.slice(0, 50).forEach((friend, idx) => {
+          const name = friend.querySelector('[class*="name"], h3, h4')?.textContent?.trim();
+          const status = friend.querySelector('[class*="status"], [class*="online"]')?.textContent?.trim();
+          const game = friend.querySelector('[class*="game"]')?.textContent?.trim();
+
+          if (name) {
+            let line = `${idx + 1}. ${name}`;
+            if (status) line += ` - ${status}`;
+            if (game) line += ` (jugando: ${game})`;
+            context.push(line);
+          }
+        });
+        context.push(`========== FIN AMIGOS ==========\n`);
+      }
+    }
+
+    // 4. PERFIL (página /profile)
+    if (path.includes('/profile')) {
+      const userName = document.querySelector('[class*="persona"], h1, h2')?.textContent?.trim();
+      const stats = Array.from(document.querySelectorAll('[class*="stat"], [class*="metric"], [class*="count"]'))
+        .map(el => el.textContent?.trim())
+        .filter(text => text && text.length < 100);
+
+      if (userName || stats.length > 0) {
+        context.push(`\n\n========== PERFIL ==========`);
+        if (userName) context.push(`Usuario: ${userName}`);
+        if (stats.length > 0) {
+          context.push(`\nEstadísticas:`);
+          stats.forEach(stat => context.push(`- ${stat}`));
+        }
+        context.push(`========== FIN PERFIL ==========\n`);
+      }
+    }
+
+    // 5. JUEGOS (grid de juegos en cualquier página)
+    const gameCards = Array.from(document.querySelectorAll('[href^="/game/"], [class*="game-card"], [class*="game-item"]'));
+    if (gameCards.length > 0 && listCards.length === 0) {
+      context.push(`\n\n========== JUEGOS (${gameCards.length}) ==========`);
+      gameCards.slice(0, 30).forEach((card, idx) => {
+        const name = card.querySelector('h2, h3, h4, [alt]')?.textContent?.trim() ||
+                     card.querySelector('img')?.getAttribute('alt');
+        const price = card.querySelector('[class*="price"]')?.textContent?.trim();
+        const discount = card.querySelector('[class*="discount"], [class*="sale"]')?.textContent?.trim();
+        const tags = Array.from(card.querySelectorAll('[class*="tag"], [class*="genre"]'))
+          .map(t => t.textContent?.trim()).filter(Boolean);
+
+        if (name) {
+          let line = `${idx + 1}. ${name}`;
+          if (discount) line += ` ${discount}`;
+          if (price) line += ` - ${price}`;
+          if (tags.length > 0) line += ` [${tags.join(', ')}]`;
+          context.push(line);
+        }
+      });
+      context.push(`========== FIN JUEGOS ==========\n`);
+    }
+
+    // 6. MERCADO/OFERTAS (página /market)
+    if (path.includes('/market')) {
+      const offerCards = Array.from(document.querySelectorAll('[class*="offer"], [class*="deal"], [class*="sale"]'));
+      if (offerCards.length > 0) {
+        context.push(`\n\n========== OFERTAS (${offerCards.length}) ==========`);
+        offerCards.slice(0, 20).forEach((card, idx) => {
+          const offer = card.textContent?.trim();
+          if (offer && offer.length < 200) {
+            context.push(`${idx + 1}. ${offer}`);
+          }
+        });
+        context.push(`========== FIN OFERTAS ==========\n`);
+      }
+    }
+
+    // 7. HOME (página principal)
+    if (path === '/' || path === '/home') {
+      const sections = Array.from(document.querySelectorAll('section, [class*="section"], [class*="carousel"]'));
+      if (sections.length > 0) {
+        context.push(`\n\n========== HOME - SECCIONES ==========`);
+        sections.slice(0, 10).forEach((section, idx) => {
+          const heading = section.querySelector('h1, h2, h3')?.textContent?.trim();
+          const items = Array.from(section.querySelectorAll('[class*="card"], [class*="item"]'))
+            .map(item => item.textContent?.trim().slice(0, 100))
+            .filter(Boolean)
+            .slice(0, 5);
+
+          if (heading) {
+            context.push(`\n${idx + 1}. ${heading}`);
+            if (items.length > 0) {
+              items.forEach(item => context.push(`   - ${item}`));
+            }
+          }
+        });
+        context.push(`========== FIN HOME ==========\n`);
+      }
+    }
+
+    // 8. TABLA/LEADERBOARD (admin, stats, etc.)
+    const tables = Array.from(document.querySelectorAll('table, [role="table"]'));
+    if (tables.length > 0) {
+      context.push(`\n\n========== TABLAS/DATOS ==========`);
+      tables.forEach((table, idx) => {
+        const headers = Array.from(table.querySelectorAll('th'))
+          .map(th => th.textContent?.trim()).filter(Boolean);
+        const rows = Array.from(table.querySelectorAll('tbody tr')).slice(0, 20);
+
+        if (headers.length > 0) {
+          context.push(`\nTabla ${idx + 1}: ${headers.join(' | ')}`);
+          rows.forEach((row, rowIdx) => {
+            const cells = Array.from(row.querySelectorAll('td'))
+              .map(td => td.textContent?.trim()).filter(Boolean);
+            if (cells.length > 0) {
+              context.push(`${rowIdx + 1}. ${cells.join(' | ')}`);
+            }
+          });
+        }
+      });
+      context.push(`========== FIN TABLAS ==========\n`);
+    }
+
+    // 9. BOTONES/ACCIONES IMPORTANTES
+    const actionButtons = Array.from(
+      document.querySelectorAll('button[class*="bg-[#009966]"], button[class*="bg-[#155dfc]"], [class*="btn-primary"]')
+    )
+      .map(btn => btn.textContent?.trim())
+      .filter(text => text && text.length < 50);
+
+    if (actionButtons.length > 0) {
+      context.push(`\nAcciones: ${[...new Set(actionButtons)].join(', ')}`);
+    }
+
+    // 10. CONTENIDO GENÉRICO (fallback si nada específico fue capturado)
+    if (context.length < 8) {
+      const mainContent = document.querySelector('main, [role="main"], #root > div > div');
+      if (mainContent?.textContent?.trim()) {
+        const allText = mainContent.textContent.trim();
+        context.push(`\n\n========== TODO EL CONTENIDO ==========\n${allText}\n========== FIN ==========`);
       }
     }
 
