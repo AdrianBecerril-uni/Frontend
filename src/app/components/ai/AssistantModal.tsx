@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Bot, X, Send, Sparkles, Eye, Library, Maximize2, Minimize2 } from "lucide-react";
+import { Bot, X, Send, Sparkles, Eye, Maximize2, Minimize2 } from "lucide-react";
 import api from "../../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 
@@ -9,7 +9,6 @@ interface Message {
   role: 'user' | 'assistant';
   text: string;
   hasScreenContext?: boolean;
-  hasSteamContext?: boolean;
 }
 
 // FUTURO: Descomentar cuando tengamos modelo de visión de Groq
@@ -28,13 +27,12 @@ export function AssistantModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { id: '1', role: 'assistant', text: '¡Hola! Soy tu asistente de juegos SteaMate. Usa el botón de ojo para compartir lo que ves en pantalla y el botón de biblioteca para compartir tu perfil de Steam. ¿En qué te ayudo?' }
+    { id: '1', role: 'assistant', text: '¡Hola! Soy tu asistente de juegos SteaMate. Usa el botón de ojo para compartir lo que ves en pantalla. ¿En qué te ayudo?' }
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [hasScreenContext, setHasScreenContext] = useState(false);
-  const [hasSteamContext, setHasSteamContext] = useState(true); // Activado por defecto
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
 
@@ -291,10 +289,6 @@ export function AssistantModal() {
     setHasScreenContext(!hasScreenContext);
   };
 
-  const handleToggleSteamContext = () => {
-    setHasSteamContext(!hasSteamContext);
-  };
-
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
@@ -306,7 +300,6 @@ export function AssistantModal() {
       role: 'user',
       text: userText,
       hasScreenContext: !!screenContext,
-      hasSteamContext: hasSteamContext
     };
     setMessages(prev => [...prev, userMsg]);
     setInput("");
@@ -317,9 +310,9 @@ export function AssistantModal() {
         message: userText,
         sessionId,
         userId: user?.steamid || 'anonymous',
-        steamId: hasSteamContext ? (user?.steamid || null) : null, // Solo enviar si está activado
+        steamId: user?.steamid || null,
         screenContext: screenContext || undefined,
-        includeSteamContext: hasSteamContext,
+        includeSteamContext: true,
       });
 
       const data = response.data;
@@ -343,7 +336,6 @@ export function AssistantModal() {
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setLoading(false);
-      setHasScreenContext(false); // Reset after sending
     }
   };
 
@@ -549,20 +541,12 @@ export function AssistantModal() {
                           <Bot size={12} /> SteaMate AI
                         </div>
                       )}
-                      {(msg.hasScreenContext || msg.hasSteamContext) && (
+                      {msg.hasScreenContext && (
                         <div className="flex items-center gap-2 mb-2 text-xs">
-                          {msg.hasScreenContext && (
-                            <span className="flex items-center gap-1 text-cyan-400">
-                              <Eye size={12} />
-                              Pantalla
-                            </span>
-                          )}
-                          {msg.hasSteamContext && (
-                            <span className="flex items-center gap-1 text-purple-400">
-                              <Library size={12} />
-                              Steam
-                            </span>
-                          )}
+                          <span className="flex items-center gap-1 text-cyan-400">
+                            <Eye size={12} />
+                            Pantalla
+                          </span>
                         </div>
                       )}
                       <p className="whitespace-pre-wrap">{msg.text}</p>
@@ -600,20 +584,6 @@ export function AssistantModal() {
                     <Eye size={20} />
                   </button>
 
-                  {/* Steam context toggle button */}
-                  <button
-                    onClick={handleToggleSteamContext}
-                    disabled={loading}
-                    className={`transition-all disabled:opacity-50 disabled:cursor-not-allowed p-2 rounded-lg ${
-                      hasSteamContext
-                        ? 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
-                        : 'text-slate-400 hover:text-purple-400 hover:bg-slate-800'
-                    }`}
-                    title={hasSteamContext ? "Contexto de Steam activado" : "Dar contexto de Steam"}
-                  >
-                    <Library size={20} />
-                  </button>
-
                   {/* Input field */}
                   <div className="flex-1 flex items-center gap-2 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 focus-within:border-blue-500 transition-colors">
                     <input
@@ -621,15 +591,7 @@ export function AssistantModal() {
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                      placeholder={
-                        hasScreenContext && hasSteamContext
-                          ? "Pregunta con contexto completo..."
-                          : hasScreenContext
-                            ? "Pregunta sobre lo que ves..."
-                            : hasSteamContext
-                              ? "Pregunta sobre tus juegos..."
-                              : "Pregunta general..."
-                      }
+                      placeholder={hasScreenContext ? "Pregunta sobre lo que ves..." : "Escribe tu pregunta..."}
                       className="flex-1 bg-transparent text-white placeholder-slate-500 focus:outline-none"
                     />
                     <button
@@ -641,20 +603,12 @@ export function AssistantModal() {
                     </button>
                   </div>
                 </div>
-                {(hasScreenContext || hasSteamContext) && (
+                {hasScreenContext && (
                   <div className="mt-2 text-xs flex items-center gap-3">
-                    {hasScreenContext && (
-                      <span className="text-cyan-400 flex items-center gap-1">
-                        <Eye size={12} />
-                        Contexto de pantalla
-                      </span>
-                    )}
-                    {hasSteamContext && (
-                      <span className="text-purple-400 flex items-center gap-1">
-                        <Library size={12} />
-                        Biblioteca Steam
-                      </span>
-                    )}
+                    <span className="text-cyan-400 flex items-center gap-1">
+                      <Eye size={12} />
+                      Contexto de pantalla
+                    </span>
                   </div>
                 )}
               </div>

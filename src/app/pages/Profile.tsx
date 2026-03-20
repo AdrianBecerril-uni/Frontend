@@ -96,27 +96,27 @@ const FALLBACK_LIBRARY: Game[] = [
 const FALLBACK_ACTIVITY = [
   {
     name: "Counter-Strike 2",
-    action: "JugÃ³ 3.2h",
+    action: "Jugó 3.2h",
     when: "Hace 2h",
     tone: "play",
   },
   {
     name: "Elden Ring",
-    action: "DesbloqueÃ³ 'Lord of Frenzied Flame'",
+    action: "Desbloqueó 'Lord of Frenzied Flame'",
     when: "Hace 5h",
     tone: "achievement",
   },
-  { name: "Stardew Valley", action: "JugÃ³ 1.8h", when: "Ayer", tone: "play" },
+  { name: "Stardew Valley", action: "Jugó 1.8h", when: "Ayer", tone: "play" },
   {
     name: "Terraria",
-    action: "JugÃ³ 4.5h",
-    when: "Hace 3 dÃ­as",
+    action: "Jugó 4.5h",
+    when: "Hace 3 días",
     tone: "play",
   },
   {
     name: "Cyberpunk 2077",
-    action: "DesbloqueÃ³ 'The Sun'",
-    when: "Hace 4 dÃ­as",
+    action: "Desbloqueó 'The Sun'",
+    when: "Hace 4 días",
     tone: "achievement",
   },
 ];
@@ -155,7 +155,7 @@ function relativeLabel(lastPlayed?: number, fallback = "Reciente") {
   const days = Math.floor(delta / 86_400_000);
   if (hours < 24) return `Hace ${Math.max(1, hours)}h`;
   if (days === 1) return "Ayer";
-  return `Hace ${days} dÃ­as`;
+  return `Hace ${days} días`;
 }
 
 function normalizeGenres(raw: any, totalHours: number): GenreItem[] {
@@ -171,9 +171,9 @@ function normalizeGenres(raw: any, totalHours: number): GenreItem[] {
       { name: "FPS / Shooter", pct: 42, games: 12 },
       { name: "RPG", pct: 22, games: 9 },
       { name: "Sandbox / Survival", pct: 12, games: 8 },
-      { name: "AcciÃ³n / Aventura", pct: 10, games: 6 },
+      { name: "Acción / Aventura", pct: 10, games: 6 },
       { name: "Estrategia", pct: 5, games: 4 },
-      { name: "SimulaciÃ³n", pct: 4, games: 3 },
+      { name: "Simulación", pct: 4, games: 3 },
       { name: "Indie", pct: 3, games: 5 },
       { name: "Otros", pct: 2, games: 10 },
     ];
@@ -188,7 +188,7 @@ function normalizeGenres(raw: any, totalHours: number): GenreItem[] {
     .map((item: any, index: number) => {
       const hours = Number(item.hours ?? item.playtime ?? item.value ?? 0);
       return {
-        name: String(item.name ?? item.genre ?? `GÃ©nero ${index + 1}`),
+        name: String(item.name ?? item.genre ?? `Género ${index + 1}`),
         hours: Number.isFinite(hours) ? hours : 0,
         games: Number(item.games ?? item.count ?? 0) || 0,
       };
@@ -305,7 +305,7 @@ export function Profile() {
   const dailyAverage =
     profile?.dailyAverageHours ??
     Number(((totalHours || 0) / daysSinceMember).toFixed(1));
-  // Reemplazar la cuenta por la cuenta real si estÃ¡ disponible
+  // Reemplazar la cuenta por la cuenta real si está disponible
   const apiAchievements =
     achievementsData === null
       ? "..."
@@ -325,8 +325,8 @@ export function Profile() {
       ? Math.floor(games.length * 0.1)
       : apiCompleted;
 
-  // Mostramos los logros reales mÃ¡s raros conseguidos por el jugador
-  // O un pequeÃ±o fallback vacÃ­o mientras cargan
+  // Mostramos los logros reales más raros conseguidos por el jugador
+  // O un pequeño fallback vacío mientras cargan
   const isLoadingAchievements = achievementsData === null;
   const hasRareAchievements =
     achievementsData?.rarestAchievementsList?.length > 0;
@@ -335,8 +335,8 @@ export function Profile() {
 
   const getMappedAchievements = (list: any[]) =>
     (list || []).map((ach: any) => {
-      // Si el logro no estÃƒÂ¡ desbloqueado (ahora podemos recibir logros normales/bloqueados del backend)
-      const isUnlocked = ach.unlocked !== false; // Si no viene explÃƒcitamente como false, lo asumimos desbloqueado
+      // Si el logro no está desbloqueado (ahora podemos recibir logros normales/bloqueados del backend)
+      const isUnlocked = ach.unlocked !== false; // Si no viene explícitamente como false, lo asumimos desbloqueado
 
       return {
         title: ach.name,
@@ -382,7 +382,7 @@ export function Profile() {
     displayAchievements = [
       {
         title: "Sin logros",
-        subtitle: "AÃºn no hay logros conseguidos",
+        subtitle: "Aún no hay logros conseguidos",
         unlocked: false,
         icon: Zap,
         cardClass: "bg-[#162032] border-[#1d293d] opacity-60",
@@ -454,8 +454,8 @@ export function Profile() {
     name: r.name,
     action:
       r.playtime2Weeks && r.playtime2Weeks > 0
-        ? `JugÃ³ ${(r.playtime2Weeks / 60).toFixed(1)}h`
-        : `JugÃ³ ${Math.max(1, Math.round((r.playtimeForever || 0) / 60))}h`,
+        ? `Jugó ${(r.playtime2Weeks / 60).toFixed(1)}h`
+        : `Jugó ${Math.max(1, Math.round((r.playtimeForever || 0) / 60))}h`,
     when: relativeLabel(r.lastPlayed, index === 0 ? "Hace 2h" : "Reciente"),
     tone: "play" as const,
   }));
@@ -486,7 +486,7 @@ export function Profile() {
       iconClass: "text-[#c27aff]",
     },
     {
-      label: "Media/Dí­a",
+      label: "Media/Día",
       value: `${dailyAverage}h`,
       Icon: TrendingUp,
       valueClass: "text-[#00d3f3]",
@@ -587,7 +587,7 @@ export function Profile() {
               <button
                 onClick={logout}
                 className="h-[34px] w-[34px] rounded-[10px] border border-[rgba(130,24,26,0.3)] text-[#ff637e] flex items-center justify-center hover:bg-[rgba(130,24,26,0.15)] transition-colors"
-                title="Cerrar sesiÃ³n"
+                title="Cerrar sesión"
               >
                 <LogOut size={16} />
               </button>
@@ -730,7 +730,7 @@ export function Profile() {
             <Award size={18} className="text-[#ffb900]" />{" "}
             {realAchievements.length > 0
               ? hasRareAchievements
-                ? "Logros MÃ¡s Destacados"
+                ? "Logros Más Destacados"
                 : "Logros Recientes"
               : "Logros de Perfil"}
           </h3>
@@ -770,8 +770,8 @@ export function Profile() {
                 </p>
               </div>
               {achievement.unlocked && (
-                <span className="text-[10px] text-[#00d492] font-bold">
-                  âœ“
+                <span className=”text-[10px] text-[#00d492] font-bold”>
+                  ✓
                 </span>
               )}
             </article>
