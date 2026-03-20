@@ -650,14 +650,17 @@ export function Profile() {
                         {index === 3 ? "Grand Theft Auto\nV" : game.name}
                       </p>
                     </div>
-                    <div className="flex-1 h-6 bg-[rgba(29,41,61,0.6)] rounded-[6px] overflow-hidden">
+                    <div className="flex-1 h-6 bg-[rgba(29,41,61,0.6)] rounded-[6px] relative flex items-center">
                       <div
-                        className="h-full rounded-[6px]"
+                        className="absolute left-0 top-0 h-full rounded-[6px]"
                         style={{
                           width: `${Math.max(6, width)}%`,
                           backgroundColor: barColors[index] || "#4285f4",
                         }}
                       />
+                      <span className="relative z-10 ml-2 text-[11px] font-bold text-white drop-shadow-md">
+                        {Math.floor(hours).toLocaleString()}h
+                      </span>
                     </div>
                   </div>
                 );
