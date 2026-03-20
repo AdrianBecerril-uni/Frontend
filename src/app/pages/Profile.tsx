@@ -4,6 +4,7 @@ import { Navigate, Link } from "react-router";
 import api from "../../lib/api";
 import {
   Award,
+  Check,
   ChevronRight,
   Clock,
   DollarSign,
@@ -770,7 +771,7 @@ export function Profile() {
                 </p>
               </div>
               {achievement.unlocked && (
-                <span className=”text-[10px] text-[#00d492] font-bold”>✓</span>
+                <Check size={14} className=”text-[#00d492]” />
               )}
             </article>
           ))}
