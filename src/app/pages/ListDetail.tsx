@@ -210,7 +210,7 @@ export function ListDetail() {
             </div>
 
             <div className="flex items-center gap-6">
-              {user?.id === list.author._id && (
+              {user?.id === list.author?._id && (
                 <button
                   type="button"
                   onClick={handleDelete}
