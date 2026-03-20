@@ -770,9 +770,7 @@ export function Profile() {
                 </p>
               </div>
               {achievement.unlocked && (
-                <span className=”text-[10px] text-[#00d492] font-bold”>
-                  ✓
-                </span>
+                <span className=”text-[10px] text-[#00d492] font-bold”>✓</span>
               )}
             </article>
           ))}
