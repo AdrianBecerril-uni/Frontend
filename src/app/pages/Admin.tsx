@@ -308,7 +308,7 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "warned" | "silenced" | "banned">("all");
   const [showActionModal, setShowActionModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [actionType, setActionType] = useState<"warn" | "silence" | "ban">("warn");
+  const [actionType, setActionType] = useState<"warned" | "silenced" | "banned">("warned");
   const [reason, setReason] = useState("");
   const [duration, setDuration] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -318,7 +318,7 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
     (u.username?.toLowerCase().includes(searchTerm.toLowerCase()) || u.steamId?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleOpenActionModal = (user: any, action: "warn" | "silence" | "ban") => {
+  const handleOpenActionModal = (user: any, action: "warned" | "silenced" | "banned") => {
     setSelectedUser(user);
     setActionType(action);
     setReason("");
@@ -339,7 +339,7 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
         reason: reason,
       };
 
-      if (duration && (actionType === "silence" || actionType === "ban")) {
+      if (duration && (actionType === "silenced" || actionType === "banned")) {
         payload.duration = parseInt(duration);
       }
 
@@ -454,7 +454,7 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
                       <FileText size={16} />
                     </button>
                     <button 
-                      onClick={() => handleOpenActionModal(user, "warn")}
+                      onClick={() => handleOpenActionModal(user, "warned")}
                       disabled={user.status === "banned"}
                       className="p-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/20 text-yellow-400 rounded-lg transition-colors disabled:opacity-50" 
                       title="Advertir"
@@ -462,7 +462,7 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
                       <AlertOctagon size={16} />
                     </button>
                     <button 
-                      onClick={() => handleOpenActionModal(user, "silence")}
+                      onClick={() => handleOpenActionModal(user, "silenced")}
                       disabled={user.status === "banned"}
                       className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-lg transition-colors disabled:opacity-50" 
                       title="Silenciar"
@@ -470,7 +470,7 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
                       <MessageSquareOff size={16} />
                     </button>
                     <button 
-                      onClick={() => handleOpenActionModal(user, "ban")}
+                      onClick={() => handleOpenActionModal(user, "banned")}
                       title="Banear"
                       className="p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-lg transition-colors"
                     >
@@ -489,9 +489,9 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6">
             <h3 className="text-lg font-bold text-white mb-4">
-              {actionType === "warn" && "Advertir usuario"}
-              {actionType === "silence" && "Silenciar usuario"}
-              {actionType === "ban" && "Banear usuario"}
+              {actionType === "warned" && "Advertir usuario"}
+              {actionType === "silenced" && "Silenciar usuario"}
+              {actionType === "banned" && "Banear usuario"}
             </h3>
             
             <div className="space-y-4 mb-6">
@@ -510,10 +510,10 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
                 />
               </div>
 
-              {(actionType === "silence" || actionType === "ban") && (
+              {(actionType === "silenced" || actionType === "banned") && (
                 <div>
                   <label className="text-sm text-slate-400 block mb-2">
-                    Duración en días {actionType === "ban" ? "(dejar vacío para permanente)" : ""}
+                    Duración en días {actionType === "banned" ? "(dejar vacío para permanente)" : ""}
                   </label>
                   <input
                     type="number"
