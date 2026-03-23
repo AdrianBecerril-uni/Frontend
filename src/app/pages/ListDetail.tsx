@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import api from "../../lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
+import { ReportButton } from "../components/ReportButton";
 
 interface Game {
   appId: string | number;
@@ -173,6 +174,14 @@ export function ListDetail() {
                     locale: es,
                   })}
                 </span>
+                {user && user.id !== list.author?._id && (
+                  <ReportButton
+                    targetId={list.author?._id}
+                    targetType="user"
+                    buttonLabel="Reportar perfil"
+                    buttonClassName="inline-flex items-center gap-2 text-[#90a1b9] hover:text-[#ff8a8c] transition-colors text-[14px]"
+                  />
+                )}
               </div>
             </div>
 
@@ -210,6 +219,14 @@ export function ListDetail() {
             </div>
 
             <div className="flex items-center gap-6">
+              {user && (
+                <ReportButton
+                  targetId={list._id}
+                  targetType="list"
+                  buttonLabel="Reportar lista"
+                  buttonClassName="inline-flex items-center gap-2 text-[#90a1b9] text-[16px] hover:text-[#ff8a8c] transition-colors"
+                />
+              )}
               {user?.id === list.author?._id && (
                 <button
                   type="button"
@@ -325,10 +342,20 @@ export function ListDetail() {
                 <div className="min-w-0 flex-1">
                   <div className="rounded-tl-[2px] rounded-tr-[14px] rounded-br-[14px] rounded-bl-[14px] bg-[rgba(29,41,61,0.5)] px-4 py-3 border border-[#1d293d]">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-white text-[16px] leading-6 font-bold">
-                        {comment.author?.username}
-                      </span>
-                      <span className="text-[#62748e] text-[12px] leading-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-white text-[16px] leading-6 font-bold truncate">
+                          {comment.author?.username}
+                        </span>
+                        {user && (
+                          <ReportButton
+                            targetId={comment._id}
+                            targetType="comment"
+                            buttonLabel="Reportar"
+                            buttonClassName="inline-flex items-center gap-1 text-[#90a1b9] text-[12px] hover:text-[#ff8a8c] transition-colors"
+                          />
+                        )}
+                      </div>
+                      <span className="text-[#62748e] text-[12px] leading-4 whitespace-nowrap">
                         {formatDistanceToNow(new Date(comment.createdAt), {
                           addSuffix: true,
                           locale: es,

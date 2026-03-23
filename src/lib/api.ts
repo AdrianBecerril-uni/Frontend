@@ -52,4 +52,11 @@ export const markNotificationRead = (id: string) =>
 export const markAllNotificationsRead = () =>
   api.patch("/api/notifications/read-all");
 
+export const createReport = (payload: {
+  targetId: string;
+  targetType: 'list' | 'comment' | 'user';
+  reason: string;
+  description?: string;
+}) => api.post('/api/reports', payload);
+
 export default api;
