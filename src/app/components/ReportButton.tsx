@@ -31,12 +31,26 @@ type ReportButtonProps = {
   buttonClassName?: string;
 };
 
-const REASONS = [
-  { value: 'Spam', label: 'Spam' },
-  { value: 'Contenido Ofensivo', label: 'Contenido Ofensivo' },
-  { value: 'Información Falsa', label: 'Información Falsa' },
-  { value: 'Otros', label: 'Otros' },
-];
+const REASON_OPTIONS: Record<ReportTargetType, Array<{ value: string; label: string }>> = {
+  list: [
+    { value: 'Spam', label: 'Spam' },
+    { value: 'Contenido Ofensivo', label: 'Contenido Ofensivo' },
+    { value: 'Información Falsa', label: 'Información Falsa' },
+    { value: 'Otros', label: 'Otros' },
+  ],
+  comment: [
+    { value: 'Spam', label: 'Spam' },
+    { value: 'Contenido Ofensivo', label: 'Contenido Ofensivo' },
+    { value: 'Información Falsa', label: 'Información Falsa' },
+    { value: 'Otros', label: 'Otros' },
+  ],
+  user: [
+    { value: 'Nombre Ofensivo', label: 'Nombre de Usuario Ofensivo' },
+    { value: 'Imagen Inadecuada', label: 'Imagen de Perfil Inadecuada' },
+    { value: 'Se hace pasar por otra persona', label: 'Se hace pasar por otra persona' },
+    { value: 'Otros', label: 'Otros' },
+  ],
+};
 
 export function ReportButton({
   targetId,
@@ -81,6 +95,15 @@ export function ReportButton({
     }
   };
 
+  const getTargetTypeLabel = () => {
+    if (targetType === 'user') return 'usuario';
+    if (targetType === 'list') return 'lista';
+    if (targetType === 'comment') return 'comentario';
+    return 'contenido';
+  };
+
+  const reasons = REASON_OPTIONS[targetType];
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -95,7 +118,7 @@ export function ReportButton({
 
       <DialogContent className="bg-[#0f172b] border-[#1d293d] text-white">
         <DialogHeader>
-          <DialogTitle>Reportar contenido</DialogTitle>
+          <DialogTitle>Reportar {getTargetTypeLabel()}</DialogTitle>
           <DialogDescription className="text-[#90a1b9]">
             Tu reporte sera revisado por el equipo de moderacion.
           </DialogDescription>
@@ -109,7 +132,7 @@ export function ReportButton({
                 <SelectValue placeholder="Selecciona un motivo" />
               </SelectTrigger>
               <SelectContent className="bg-[#0f172b] border-[#314158] text-white">
-                {REASONS.map((item) => (
+                {reasons.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>

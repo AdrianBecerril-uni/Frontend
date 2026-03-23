@@ -174,9 +174,9 @@ export function ListDetail() {
                     locale: es,
                   })}
                 </span>
-                {user && user.id !== list.author?._id && (
+                {user && user.id !== list.author?._id && list.author?._id && (
                   <ReportButton
-                    targetId={list.author?._id}
+                    targetId={String(list.author._id)}
                     targetType="user"
                     buttonLabel="Reportar perfil"
                     buttonClassName="inline-flex items-center gap-2 text-[#90a1b9] hover:text-[#ff8a8c] transition-colors text-[14px]"
@@ -219,7 +219,7 @@ export function ListDetail() {
             </div>
 
             <div className="flex items-center gap-6">
-              {user && (
+              {user && user.id !== String(list.author?._id) && (
                 <ReportButton
                   targetId={list._id}
                   targetType="list"
@@ -227,7 +227,7 @@ export function ListDetail() {
                   buttonClassName="inline-flex items-center gap-2 text-[#90a1b9] text-[16px] hover:text-[#ff8a8c] transition-colors"
                 />
               )}
-              {user?.id === list.author?._id && (
+              {user && user.id === String(list.author?._id) && (
                 <button
                   type="button"
                   onClick={handleDelete}
@@ -346,7 +346,7 @@ export function ListDetail() {
                         <span className="text-white text-[16px] leading-6 font-bold truncate">
                           {comment.author?.username}
                         </span>
-                        {user && (
+                        {user && user.id !== String(comment.author?._id) && (
                           <ReportButton
                             targetId={comment._id}
                             targetType="comment"
