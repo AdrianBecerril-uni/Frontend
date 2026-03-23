@@ -11,7 +11,7 @@ import {
 type TabType = "moderation" | "users";
 
 export function Admin() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("moderation");
   const [searchTerm, setSearchTerm] = useState("");
   const [reports, setReports] = useState([]);
@@ -19,6 +19,16 @@ export function Admin() {
   const [stats, setStats] = useState({ pending: 0, resolved: 0, deleted: 0, warned: 0, active: 0, silenced: 0, banned: 0 });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+
+  if (authLoading) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6 pb-8">
+        <div className="text-center py-12">
+          <p className="text-slate-400">Comprobando sesión...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user?.isAdmin && user?.role !== 'admin') {
     return <Navigate to="/" replace />;
