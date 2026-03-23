@@ -339,7 +339,12 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
 
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "warned" | "silenced" | "banned">("all");
   const [showActionModal, setShowActionModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [historyUser, setHistoryUser] = useState<any>(null);
+  const [historyActions, setHistoryActions] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
   const [actionType, setActionType] = useState<ModerationActionType>("warned");
   const [actionMode, setActionMode] = useState<"apply" | "undo">("apply");
   const [reason, setReason] = useState("");
@@ -387,18 +392,8 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
 
       const isUndo = isActionActiveForUser(user, action);
       if (isUndo) {
-        // Para desbanear pedimos motivo explícito en modal.
-        if (action === "banned") {
-          handleOpenActionModal(user, action, "undo");
-          return;
-        }
-
-        // Para otras acciones se mantiene deshacer rápido.
-        await api.post('/api/moderation/actions', {
-          userId: user._id,
-          action,
-        });
-        onReload();
+        // En deshacer siempre pedimos motivo para dejar trazabilidad.
+        handleOpenActionModal(user, action, "undo");
         return;
       }
 
@@ -408,6 +403,44 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleOpenHistoryModal = async (user: any) => {
+    try {
+      setShowHistoryModal(true);
+      setHistoryUser(user);
+      setHistoryLoading(true);
+      setHistoryError("");
+
+      const response = await api.get(`/api/moderation/user/${user._id}`);
+      const actions = response.data?.actions || [];
+
+      const sortedActions = [...actions].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      setHistoryActions(sortedActions);
+    } catch (error) {
+      console.error('Error obteniendo historial de moderación:', error);
+      setHistoryActions([]);
+      setHistoryError("No se pudo cargar el historial de moderación.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const getActionLabel = (action: string) => {
+    if (action === "warned") return "Advertencia";
+    if (action === "silenced") return "Silencio";
+    if (action === "banned" || action === "suspended") return "Baneo";
+    return action;
+  };
+
+  const getActionBadge = (action: string) => {
+    if (action === "warned") return "bg-amber-500/10 text-amber-300 border-amber-500/30";
+    if (action === "silenced") return "bg-orange-500/10 text-orange-300 border-orange-500/30";
+    if (action === "banned" || action === "suspended") return "bg-red-500/10 text-red-300 border-red-500/30";
+    return "bg-slate-500/10 text-slate-300 border-slate-500/30";
   };
 
   const handleSubmitAction = async () => {
@@ -539,6 +572,7 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
                   </div>
                   <div className="flex gap-2">
                     <button 
+                      onClick={() => handleOpenHistoryModal(user)}
                       className="p-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 rounded-lg transition-colors" 
                       title="Ver historial"
                     >
@@ -592,6 +626,8 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6">
             <h3 className="text-lg font-bold text-white mb-4">
+              {actionMode === "undo" && actionType === "warned" && "Quitar advertencia"}
+              {actionMode === "undo" && actionType === "silenced" && "Quitar silencio"}
               {actionMode === "undo" && actionType === "banned" && "Desbanear usuario"}
               {actionMode === "apply" && actionType === "warned" && "Advertir usuario"}
               {actionMode === "apply" && actionType === "silenced" && "Silenciar usuario"}
@@ -662,8 +698,71 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
                 disabled={submitting || !reason.trim()}
                 className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50"
               >
-                {submitting ? "Procesando..." : actionMode === "undo" && actionType === "banned" ? "Desbanear" : "Confirmar"}
+                {submitting ? "Procesando..." : actionMode === "undo" && actionType === "warned" ? "Quitar advertencia" : actionMode === "undo" && actionType === "silenced" ? "Quitar silencio" : actionMode === "undo" && actionType === "banned" ? "Desbanear" : "Confirmar"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* History Modal */}
+      {showHistoryModal && historyUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 max-h-[85vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-white">Historial de moderación</h3>
+                <p className="text-sm text-slate-400">Usuario: {historyUser.username}</p>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="overflow-y-auto pr-1 space-y-3">
+              {historyLoading && <p className="text-sm text-slate-400">Cargando historial...</p>}
+
+              {!historyLoading && historyError && (
+                <p className="text-sm text-red-400">{historyError}</p>
+              )}
+
+              {!historyLoading && !historyError && historyActions.length === 0 && (
+                <p className="text-sm text-slate-400">Este usuario no tiene acciones de moderación registradas.</p>
+              )}
+
+              {!historyLoading && !historyError && historyActions.map((item) => (
+                <div key={item._id} className="bg-slate-800/60 border border-slate-700 rounded-xl p-4">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <span className={`text-xs px-2 py-1 rounded border ${getActionBadge(item.action)}`}>
+                      {getActionLabel(item.action)}
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded ${item.isActive ? "bg-emerald-500/10 text-emerald-300" : "bg-slate-600/20 text-slate-300"}`}>
+                      {item.isActive ? "Activa" : "Revertida"}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {new Date(item.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-slate-200 mb-1">
+                    Motivo: <span className="text-slate-300">{item.reason || "Sin motivo"}</span>
+                  </p>
+
+                  {item.duration ? (
+                    <p className="text-xs text-slate-400 mb-1">Duración: {item.duration} día{item.duration !== 1 ? "s" : ""}</p>
+                  ) : (
+                    <p className="text-xs text-slate-500 mb-1">Duración: permanente</p>
+                  )}
+
+                  <p className="text-xs text-slate-500">
+                    Aplicada por: {item.appliedBy?.username || "-"}
+                    {item.revokedBy?.username ? ` • Revertida por: ${item.revokedBy.username}` : ""}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
