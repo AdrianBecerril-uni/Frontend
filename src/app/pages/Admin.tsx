@@ -341,6 +341,7 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
   const [showActionModal, setShowActionModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [actionType, setActionType] = useState<ModerationActionType>("warned");
+  const [actionMode, setActionMode] = useState<"apply" | "undo">("apply");
   const [reason, setReason] = useState("");
   const [duration, setDuration] = useState("");
   const [actionError, setActionError] = useState("");
@@ -361,10 +362,11 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
     (u.username?.toLowerCase().includes(searchTerm.toLowerCase()) || u.steamId?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Abre el modal para aplicar una sanción nueva con motivo y duración opcional.
-  const handleOpenActionModal = (user: any, action: ModerationActionType) => {
+  // Abre el modal para aplicar o revertir una sanción según el modo.
+  const handleOpenActionModal = (user: any, action: ModerationActionType, mode: "apply" | "undo" = "apply") => {
     setSelectedUser(user);
     setActionType(action);
+    setActionMode(mode);
     setReason("");
     setDuration("");
     setActionError("");
@@ -385,7 +387,13 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
 
       const isUndo = isActionActiveForUser(user, action);
       if (isUndo) {
-        // En modo deshacer, backend permite revertir sin motivo.
+        // Para desbanear pedimos motivo explícito en modal.
+        if (action === "banned") {
+          handleOpenActionModal(user, action, "undo");
+          return;
+        }
+
+        // Para otras acciones se mantiene deshacer rápido.
         await api.post('/api/moderation/actions', {
           userId: user._id,
           action,
@@ -394,7 +402,7 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
         return;
       }
 
-      handleOpenActionModal(user, action);
+      handleOpenActionModal(user, action, "apply");
     } catch (error) {
       console.error('Error alternando acción de moderación:', error);
     } finally {
@@ -416,7 +424,8 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
         reason: reason,
       };
 
-      if (duration && (actionType === "silenced" || actionType === "banned")) {
+      const needsDuration = actionMode === "apply" && (actionType === "silenced" || actionType === "banned");
+      if (duration && needsDuration) {
         const parsedDuration = Number(duration);
         if (!Number.isInteger(parsedDuration) || parsedDuration <= 0) {
           setActionError("La duración debe ser un número entero mayor que 0.");
@@ -583,9 +592,10 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6">
             <h3 className="text-lg font-bold text-white mb-4">
-              {actionType === "warned" && "Advertir usuario"}
-              {actionType === "silenced" && "Silenciar usuario"}
-              {actionType === "banned" && "Banear usuario"}
+              {actionMode === "undo" && actionType === "banned" && "Desbanear usuario"}
+              {actionMode === "apply" && actionType === "warned" && "Advertir usuario"}
+              {actionMode === "apply" && actionType === "silenced" && "Silenciar usuario"}
+              {actionMode === "apply" && actionType === "banned" && "Banear usuario"}
             </h3>
             
             <div className="space-y-4 mb-6">
@@ -604,7 +614,7 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
                 />
               </div>
 
-              {(actionType === "silenced" || actionType === "banned") && (
+              {actionMode === "apply" && (actionType === "silenced" || actionType === "banned") && (
                 <div>
                   <label className="text-sm text-slate-400 block mb-2">
                     Duración en días {actionType === "banned" ? "(dejar vacío para permanente)" : ""}
@@ -652,7 +662,7 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
                 disabled={submitting || !reason.trim()}
                 className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50"
               >
-                {submitting ? "Procesando..." : "Confirmar"}
+                {submitting ? "Procesando..." : actionMode === "undo" && actionType === "banned" ? "Desbanear" : "Confirmar"}
               </button>
             </div>
           </div>
