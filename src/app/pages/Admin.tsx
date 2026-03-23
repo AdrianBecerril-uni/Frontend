@@ -5,7 +5,7 @@ import api from "../../lib/api";
 import {
   Shield, AlertTriangle, Users, Flag, Eye,
   Trash2, MessageSquareOff, Ban, FileText,
-  CheckCircle2, Search, Home, AlertOctagon, AlertCircle
+  CheckCircle2, Search, Home, AlertOctagon, AlertCircle, X
 } from "lucide-react";
 
 type TabType = "moderation" | "users";
@@ -443,6 +443,18 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
     return "bg-slate-500/10 text-slate-300 border-slate-500/30";
   };
 
+  const getHistoryStateLabel = (item: any) => {
+    if (item?.isActive) return "Activa";
+    if (item?.revokeReason === "expired") return "Expirada";
+    return "Revertida";
+  };
+
+  const getHistoryStateBadge = (item: any) => {
+    if (item?.isActive) return "bg-emerald-500/10 text-emerald-300";
+    if (item?.revokeReason === "expired") return "bg-sky-500/10 text-sky-300";
+    return "bg-slate-600/20 text-slate-300";
+  };
+
   const handleSubmitAction = async () => {
     if (!selectedUser || !reason.trim()) {
       return;
@@ -716,9 +728,10 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
               </div>
               <button
                 onClick={() => setShowHistoryModal(false)}
-                className="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
+                className="text-slate-400 hover:text-white transition-colors"
+                aria-label="Cerrar historial"
               >
-                Cerrar
+                <X size={20} />
               </button>
             </div>
 
@@ -739,8 +752,8 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
                     <span className={`text-xs px-2 py-1 rounded border ${getActionBadge(item.action)}`}>
                       {getActionLabel(item.action)}
                     </span>
-                    <span className={`text-xs px-2 py-1 rounded ${item.isActive ? "bg-emerald-500/10 text-emerald-300" : "bg-slate-600/20 text-slate-300"}`}>
-                      {item.isActive ? "Activa" : "Revertida"}
+                    <span className={`text-xs px-2 py-1 rounded ${getHistoryStateBadge(item)}`}>
+                      {getHistoryStateLabel(item)}
                     </span>
                     <span className="text-xs text-slate-500">
                       {new Date(item.createdAt).toLocaleString()}
