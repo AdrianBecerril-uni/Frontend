@@ -161,11 +161,11 @@ export function ListDetail() {
               <div className="mt-2 flex items-center gap-4 text-[16px]">
                 <span className="inline-flex items-center gap-2 text-white">
                   <img
-                    src={list.author?.avatar}
-                    alt={list.author?.username}
+                    src={list.author?.avatar || 'https://via.placeholder.com/32'}
+                    alt={list.author?.username || 'Autor desconocido'}
                     className="w-8 h-8 rounded-full object-cover border border-[#45556c] bg-[#314158]"
                   />
-                  {list.author?.username}
+                  {list.author?.username || 'Autor desconocido'}
                 </span>
                 <span className="text-[#62748e]">•</span>
                 <span className="text-[#cad5e2]">
@@ -174,7 +174,7 @@ export function ListDetail() {
                     locale: es,
                   })}
                 </span>
-                {user && user.id !== list.author?._id && list.author?._id && (
+                {user && user.id !== String(list.author?._id) && list.author?._id && (
                   <ReportButton
                     targetId={String(list.author._id)}
                     targetType="user"
