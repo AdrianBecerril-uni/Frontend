@@ -20,23 +20,11 @@ export function Admin() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  if (authLoading) {
-    return (
-      <div className="max-w-7xl mx-auto space-y-6 pb-8">
-        <div className="text-center py-12">
-          <p className="text-slate-400">Comprobando sesión...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user?.isAdmin && user?.role !== 'admin') {
-    return <Navigate to="/" replace />;
-  }
-
   useEffect(() => {
+    if (authLoading) return;
+    if (!user?.isAdmin && user?.role !== 'admin') return;
     loadData();
-  }, []);
+  }, [authLoading, user?.isAdmin, user?.role]);
 
   const loadData = async () => {
     try {
@@ -94,6 +82,20 @@ export function Admin() {
     { id: "moderation" as TabType, name: "Moderación", icon: Shield, color: "text-blue-400", bg: "bg-blue-500/10" },
     { id: "users" as TabType, name: "Usuarios", icon: Users, color: "text-purple-400", bg: "bg-purple-500/10" },
   ];
+
+  if (authLoading) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6 pb-8">
+        <div className="text-center py-12">
+          <p className="text-slate-400">Comprobando sesión...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user?.isAdmin && user?.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-8">
