@@ -334,25 +334,72 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
   setSearchTerm: (val: string) => void;
   onReload: () => void;
 }) {
+  // Acciones soportadas por los botones de sanción del panel.
+  type ModerationActionType = "warned" | "silenced" | "banned";
+
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "warned" | "silenced" | "banned">("all");
   const [showActionModal, setShowActionModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [actionType, setActionType] = useState<"warned" | "silenced" | "banned">("warned");
+  const [actionType, setActionType] = useState<ModerationActionType>("warned");
   const [reason, setReason] = useState("");
   const [duration, setDuration] = useState("");
+  const [actionError, setActionError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const normalizeStatus = (status?: string) => (status || "").toLowerCase().trim();
+
+  const isActionActiveForUser = (user: any, action: ModerationActionType) => {
+    const normalizedStatus = normalizeStatus(user?.status);
+    if (action === "banned") {
+      return normalizedStatus === "banned" || normalizedStatus === "suspended";
+    }
+    return normalizedStatus === action;
+  };
+
   const filteredUsers = users.filter(u =>
-    (statusFilter === "all" || u.status === statusFilter) &&
+    (statusFilter === "all" || (statusFilter === "banned" ? isActionActiveForUser(u, "banned") : normalizeStatus(u.status) === statusFilter)) &&
     (u.username?.toLowerCase().includes(searchTerm.toLowerCase()) || u.steamId?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleOpenActionModal = (user: any, action: "warned" | "silenced" | "banned") => {
+  // Abre el modal para aplicar una sanción nueva con motivo y duración opcional.
+  const handleOpenActionModal = (user: any, action: ModerationActionType) => {
     setSelectedUser(user);
     setActionType(action);
     setReason("");
     setDuration("");
+    setActionError("");
     setShowActionModal(true);
+  };
+
+  // Cambia el tooltip según el modo actual del botón (aplicar vs deshacer).
+  const getActionTitle = (user: any, action: ModerationActionType) => {
+    if (action === "warned") return isActionActiveForUser(user, "warned") ? "Quitar advertencia" : "Advertir";
+    if (action === "silenced") return isActionActiveForUser(user, "silenced") ? "Quitar silencio" : "Silenciar";
+    return isActionActiveForUser(user, "banned") ? "Desbanear" : "Banear";
+  };
+
+  // Toggle de sanción: si ya está aplicada, la revierte; si no, abre modal para aplicarla.
+  const handleToggleAction = async (user: any, action: ModerationActionType) => {
+    try {
+      setSubmitting(true);
+
+      const isUndo = isActionActiveForUser(user, action);
+      if (isUndo) {
+        // En modo deshacer, backend permite revertir sin motivo.
+        await api.post('/api/moderation/actions', {
+          userId: user._id,
+          action,
+        });
+        onReload();
+        return;
+      }
+
+      handleOpenActionModal(user, action);
+    } catch (error) {
+      console.error('Error alternando acción de moderación:', error);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleSubmitAction = async () => {
@@ -361,6 +408,7 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
     }
 
     try {
+      setActionError("");
       setSubmitting(true);
       const payload: any = {
         userId: selectedUser._id,
@@ -369,7 +417,12 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
       };
 
       if (duration && (actionType === "silenced" || actionType === "banned")) {
-        payload.duration = parseInt(duration);
+        const parsedDuration = Number(duration);
+        if (!Number.isInteger(parsedDuration) || parsedDuration <= 0) {
+          setActionError("La duración debe ser un número entero mayor que 0.");
+          return;
+        }
+        payload.duration = parsedDuration;
       }
 
       await api.post('/api/moderation/actions', payload);
@@ -483,25 +536,37 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
                       <FileText size={16} />
                     </button>
                     <button 
-                      onClick={() => handleOpenActionModal(user, "warned")}
-                      disabled={user.status === "banned"}
-                      className="p-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/20 text-yellow-400 rounded-lg transition-colors disabled:opacity-50" 
-                      title="Advertir"
+                      onClick={() => handleToggleAction(user, "warned")}
+                      disabled={isActionActiveForUser(user, "banned")}
+                      className={`p-2 border rounded-lg transition-colors disabled:opacity-50 ${
+                        isActionActiveForUser(user, "warned")
+                          ? "bg-yellow-500/25 border-yellow-400/40 text-yellow-300"
+                          : "bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/20 text-yellow-400"
+                      }`} 
+                      title={getActionTitle(user, "warned")}
                     >
                       <AlertOctagon size={16} />
                     </button>
                     <button 
-                      onClick={() => handleOpenActionModal(user, "silenced")}
-                      disabled={user.status === "banned"}
-                      className="p-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 rounded-lg transition-colors disabled:opacity-50" 
-                      title="Silenciar"
+                      onClick={() => handleToggleAction(user, "silenced")}
+                      disabled={isActionActiveForUser(user, "banned")}
+                      className={`p-2 border rounded-lg transition-colors disabled:opacity-50 ${
+                        isActionActiveForUser(user, "silenced")
+                          ? "bg-amber-500/25 border-amber-400/40 text-amber-300"
+                          : "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/20 text-amber-400"
+                      }`} 
+                      title={getActionTitle(user, "silenced")}
                     >
                       <MessageSquareOff size={16} />
                     </button>
                     <button 
-                      onClick={() => handleOpenActionModal(user, "banned")}
-                      title="Banear"
-                      className="p-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-lg transition-colors"
+                      onClick={() => handleToggleAction(user, "banned")}
+                      title={getActionTitle(user, "banned")}
+                      className={`p-2 border rounded-lg transition-colors ${
+                        isActionActiveForUser(user, "banned")
+                          ? "bg-red-500/25 border-red-400/40 text-red-300"
+                          : "bg-red-500/10 hover:bg-red-500/20 border-red-500/20 text-red-400"
+                      }`}
                     >
                       <Ban size={16} />
                     </button>
@@ -547,11 +612,30 @@ function UsersPanel({ users, stats, searchTerm, setSearchTerm, onReload }: {
                   <input
                     type="number"
                     value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
+                    min={1}
+                    step={1}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      if (nextValue === "") {
+                        setDuration("");
+                        setActionError("");
+                        return;
+                      }
+
+                      const parsed = Number(nextValue);
+                      if (Number.isInteger(parsed) && parsed > 0) {
+                        setDuration(nextValue);
+                        setActionError("");
+                      }
+                    }}
                     placeholder="Ej: 7, 30, etc"
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                   />
                 </div>
+              )}
+
+              {actionError && (
+                <p className="text-xs text-red-400">{actionError}</p>
               )}
             </div>
 
