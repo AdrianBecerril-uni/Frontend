@@ -646,8 +646,11 @@ export function Profile() {
                 return (
                   <div key={game.appId} className="flex items-center gap-3">
                     <div className="w-[120px] text-right">
-                      <p className="text-[12px] text-[#94a3b8] leading-[1.15]">
-                        {index === 3 ? "Grand Theft Auto\nV" : game.name}
+                      <p
+                        className="text-[12px] text-[#94a3b8] leading-[1.15]"
+                        title={game.name}
+                      >
+                        {game.name}
                       </p>
                     </div>
                     <div className="flex-1 h-6 bg-[rgba(29,41,61,0.6)] rounded-[6px] relative flex items-center">
