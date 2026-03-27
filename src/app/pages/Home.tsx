@@ -16,7 +16,16 @@ import {
   Wallet,
   Zap,
 } from "lucide-react";
-import { COMMUNITY_LISTS } from "../data/communityLists";
+
+interface PopularListItem {
+  _id: string;
+  title: string;
+  categories?: string[];
+  author?: {
+    username?: string;
+  };
+  likes?: string[];
+}
 
 interface TrendingDeal {
   dealID: string;
@@ -49,7 +58,10 @@ function genreTag(genre: string) {
 export function Home() {
   const { user } = useAuth();
   const [trending, setTrending] = useState<TrendingDeal[]>([]);
+  const [visibleTrendingCount, setVisibleTrendingCount] = useState(8);
   const [friends, setFriends] = useState<FriendActivity[]>([]);
+  const [popularLists, setPopularLists] = useState<PopularListItem[]>([]);
+  const [loadingPopularLists, setLoadingPopularLists] = useState(true);
   const [stats, setStats] = useState({
     totalHours: 0,
     totalGames: 0,
@@ -63,7 +75,7 @@ export function Home() {
         const res = await axios.get(
           "https://www.cheapshark.com/api/1.0/deals",
           {
-            params: { storeID: "1", pageSize: 4, sortBy: "Deal Rating" },
+            params: { storeID: "1", pageSize: 8, sortBy: "Deal Rating" },
           },
         );
         setTrending(res.data || []);
@@ -72,6 +84,39 @@ export function Home() {
       }
     };
     fetchTrending();
+  }, []);
+
+  useEffect(() => {
+    const updateVisibleTrendingCount = () => {
+      setVisibleTrendingCount(window.innerWidth < 768 ? 4 : 8);
+    };
+
+    updateVisibleTrendingCount();
+    window.addEventListener("resize", updateVisibleTrendingCount);
+    return () => window.removeEventListener("resize", updateVisibleTrendingCount);
+  }, []);
+
+  useEffect(() => {
+    const fetchPopularLists = async () => {
+      try {
+        setLoadingPopularLists(true);
+        const res = await api.get("/api/lists");
+        const sortedLists = (res.data || [])
+          .sort(
+            (a: PopularListItem, b: PopularListItem) =>
+              (b.likes?.length || 0) - (a.likes?.length || 0),
+          )
+          .slice(0, 3);
+        setPopularLists(sortedLists);
+      } catch (e) {
+        console.error("Error fetching popular lists:", e);
+        setPopularLists([]);
+      } finally {
+        setLoadingPopularLists(false);
+      }
+    };
+
+    fetchPopularLists();
   }, []);
 
   useEffect(() => {
@@ -114,37 +159,7 @@ export function Home() {
     fetchUserData();
   }, [user]);
 
-  const popularLists = useMemo(() => {
-    return [...COMMUNITY_LISTS].sort((a, b) => b.likes - a.likes).slice(0, 3);
-  }, []);
-
   const activityFeed = useMemo(() => {
-    if (friends.length === 0) {
-      return [
-        {
-          key: "demo-1",
-          avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=NightOwl42",
-          text: "NightOwl_42 esta jugando Counter-Strike 2",
-          time: "Ahora",
-          online: true,
-        },
-        {
-          key: "demo-2",
-          avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=PixelQueen",
-          text: "PixelQueen esta online",
-          time: "Hace 15 min",
-          online: true,
-        },
-        {
-          key: "demo-3",
-          avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=ShadowRex",
-          text: "ShadowRex esta online",
-          time: "Hace 2h",
-          online: true,
-        },
-      ];
-    }
-
     return friends.slice(0, 3).map((friend, index) => ({
       key: `${friend.username}-${index}`,
       avatar: friend.avatar,
@@ -268,17 +283,17 @@ export function Home() {
             </Link>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {trending.slice(0, 4).map((deal) => {
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {trending.slice(0, visibleTrendingCount).map((deal) => {
               const discount = Math.round(Number.parseFloat(deal.savings));
               return (
                 <Link
                   key={deal.dealID}
                   to={`/game/${deal.steamAppID || deal.dealID}`}
                   state={{ deal }}
-                  className="h-[72px] rounded-[14px] px-2 py-2 flex gap-3 hover:bg-[#1d293d]/35 transition-colors"
+                  className="h-[92px] rounded-[14px] px-2.5 py-2.5 flex gap-3 hover:bg-[#1d293d]/35 transition-colors"
                 >
-                  <div className="w-24 h-14 rounded-[10px] border border-[#314158] bg-[#1d293d] overflow-hidden shrink-0">
+                  <div className="w-32 h-[70px] rounded-[10px] border border-[#314158] bg-[#1d293d] overflow-hidden shrink-0">
                     <img
                       src={deal.thumb}
                       alt={deal.title}
@@ -286,14 +301,14 @@ export function Home() {
                     />
                   </div>
                   <div className="min-w-0 flex-1 flex flex-col justify-center gap-1">
-                    <p className="text-[#e2e8f0] text-[12px] leading-4 font-medium truncate">
+                    <p className="text-[#e2e8f0] text-[13px] leading-4 font-medium truncate">
                       {deal.title}
                     </p>
                     <div className="flex items-center gap-2">
                       <span className="h-[19px] rounded-[4px] bg-[rgba(0,188,125,0.1)] px-1.5 text-[10px] font-bold text-[#00d492] inline-flex items-center">
                         -{discount}%
                       </span>
-                      <span className="text-[#90a1b9] text-[11px]">
+                      <span className="text-[#90a1b9] text-[12px]">
                         {Number.parseFloat(deal.salePrice).toFixed(2)}€
                       </span>
                     </div>
@@ -319,29 +334,55 @@ export function Home() {
             </div>
 
             <div className="mt-4 space-y-1">
-              {activityFeed.map((item) => (
-                <div
-                  key={item.key}
-                  className="h-12 rounded-[14px] px-2 flex items-center gap-3"
-                >
-                  <div className="relative w-8 h-8 shrink-0">
-                    <img
-                      src={item.avatar}
-                      alt="avatar"
-                      className="w-8 h-8 rounded-full border border-[#314158] object-cover"
-                    />
-                    {item.online && (
-                      <span className="absolute -right-0.5 -bottom-0.5 w-[10px] h-[10px] rounded-full border-2 border-[#0f172b] bg-[#00c950]" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] text-white truncate">
-                      {item.text}
-                    </p>
-                    <p className="text-[10px] text-[#45556c]">{item.time}</p>
-                  </div>
+              {!user ? (
+                <div className="rounded-[14px] border border-[#314158] bg-[#1d293d]/30 p-4">
+                  <p className="text-[12px] text-white font-medium">
+                    Inicia sesion para ver la actividad real de tus amigos.
+                  </p>
+                  <p className="mt-1 text-[11px] text-[#90a1b9]">
+                    Conecta tu cuenta de Steam y veras quienes estan online y que estan jugando ahora.
+                  </p>
+                  <Link
+                    to="/login"
+                    className="mt-3 h-8 rounded-[10px] bg-[#155dfc] px-3 text-[11px] font-medium text-white inline-flex items-center gap-1"
+                  >
+                    Iniciar sesion <ArrowRight size={12} />
+                  </Link>
                 </div>
-              ))}
+              ) : activityFeed.length === 0 ? (
+                <div className="rounded-[14px] border border-[#314158] bg-[#1d293d]/30 p-4">
+                  <p className="text-[12px] text-white font-medium">
+                    No hay amigos conectados ahora mismo.
+                  </p>
+                  <p className="mt-1 text-[11px] text-[#90a1b9]">
+                    Vuelve mas tarde o entra en el Centro Social para revisar tu lista completa.
+                  </p>
+                </div>
+              ) : (
+                activityFeed.map((item) => (
+                  <div
+                    key={item.key}
+                    className="h-12 rounded-[14px] px-2 flex items-center gap-3"
+                  >
+                    <div className="relative w-8 h-8 shrink-0">
+                      <img
+                        src={item.avatar}
+                        alt="avatar"
+                        className="w-8 h-8 rounded-full border border-[#314158] object-cover"
+                      />
+                      {item.online && (
+                        <span className="absolute -right-0.5 -bottom-0.5 w-[10px] h-[10px] rounded-full border-2 border-[#0f172b] bg-[#00c950]" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] text-white truncate">
+                        {item.text}
+                      </p>
+                      <p className="text-[10px] text-[#45556c]">{item.time}</p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </article>
 
@@ -359,29 +400,44 @@ export function Home() {
             </div>
 
             <div className="mt-4 space-y-1.5">
-              {popularLists.map((list) => (
-                <Link
-                  key={list.id}
-                  to={`/lists/${list.id}`}
-                  className="h-[51px] rounded-[14px] px-3 flex items-center gap-3 hover:bg-[#1d293d]/35 transition-colors"
-                >
-                  <span className="h-7 min-w-7 rounded-[8px] bg-[#1d293d] px-2 text-[10px] text-[#90a1b9] inline-flex items-center justify-center">
-                    {genreTag(list.genre)}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[#e2e8f0] text-[12px] leading-4 truncate">
-                      {list.title}
-                    </p>
-                    <p className="text-[#45556c] text-[10px]">
-                      por {list.author}
-                    </p>
-                  </div>
-                  <div className="text-[#62748e] text-[10px] inline-flex items-center gap-1">
-                    <TrendingUp size={11} /> {list.likes}
-                  </div>
-                  <ArrowRight size={14} className="text-[#62748e]" />
-                </Link>
-              ))}
+              {loadingPopularLists ? (
+                <div className="rounded-[14px] border border-[#314158] bg-[#1d293d]/30 p-4">
+                  <p className="text-[12px] text-[#90a1b9]">Cargando listas populares...</p>
+                </div>
+              ) : popularLists.length === 0 ? (
+                <div className="rounded-[14px] border border-[#314158] bg-[#1d293d]/30 p-4">
+                  <p className="text-[12px] text-white font-medium">
+                    Aun no hay listas populares.
+                  </p>
+                  <p className="mt-1 text-[11px] text-[#90a1b9]">
+                    Cuando la comunidad empiece a votar, aqui veras las listas con mas likes.
+                  </p>
+                </div>
+              ) : (
+                popularLists.map((list) => (
+                  <Link
+                    key={list._id}
+                    to={`/lists/${list._id}`}
+                    className="h-[51px] rounded-[14px] px-3 flex items-center gap-3 hover:bg-[#1d293d]/35 transition-colors"
+                  >
+                    <span className="h-7 min-w-7 rounded-[8px] bg-[#1d293d] px-2 text-[10px] text-[#90a1b9] inline-flex items-center justify-center">
+                      {genreTag(list.categories?.[0] || "General")}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[#e2e8f0] text-[12px] leading-4 truncate">
+                        {list.title}
+                      </p>
+                      <p className="text-[#45556c] text-[10px]">
+                        por {list.author?.username || "Usuario"}
+                      </p>
+                    </div>
+                    <div className="text-[#62748e] text-[10px] inline-flex items-center gap-1">
+                      <TrendingUp size={11} /> {list.likes?.length || 0}
+                    </div>
+                    <ArrowRight size={14} className="text-[#62748e]" />
+                  </Link>
+                ))
+              )}
             </div>
           </article>
         </div>
