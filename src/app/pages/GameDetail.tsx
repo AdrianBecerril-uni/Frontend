@@ -1,670 +1,641 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useParams, Link } from "react-router";
 import {
-  ArrowLeft,
-  Bell,
-  Heart,
-  Loader2,
-  ShoppingCart,
-  TrendingDown,
-  TrendingUp,
+  ArrowLeft, Bell, Heart, Loader2, ShoppingCart,
+  TrendingDown, TrendingUp, Star, ExternalLink,
+  Tag, Clock, Award, ChevronDown, ChevronUp, Info,
+  Package
 } from "lucide-react";
 import axios from "axios";
 import { toast } from "sonner";
 import api from "../../lib/api";
 import type { Deal } from "../components/market/DealCard";
 
-type SteamGame = {
-  name: string;
-  header_image: string;
-  steam_appid: number;
+// ── types ─────────────────────────────────────────────────────────────────────
+
+type CheapDeal = {
+  storeID: string; gameID: string; dealID: string;
+  salePrice: string; normalPrice: string; savings: string;
+  lastChange: number; steamAppID?: string;
 };
-
-type CheapSharkDeal = {
-  storeID: string;
-  gameID: string;
-  dealID: string;
-  salePrice: string;
-  normalPrice: string;
-  savings: string;
-  lastChange: number;
-  steamAppID?: string;
+type CheapGame = {
+  info:   { title: string; steamAppID: string; thumb: string };
+  cheapestPriceEver?: { price: string; date: number };
+  deals:  Array<{ storeID: string; dealID: string; price: string; retailPrice: string; savings: string }>;
 };
+type PricePoint = { date: Date; price: number; label: string };
 
-type CheapSharkGame = {
-  info: {
-    title: string;
-    steamAppID: string;
-    thumb: string;
-  };
-  cheapestPriceEver?: {
-    price: string;
-    date: number;
-  };
-  deals: Array<{
-    storeID: string;
-    dealID: string;
-    price: string;
-    retailPrice: string;
-    savings: string;
-  }>;
-};
+// ── helpers ───────────────────────────────────────────────────────────────────
 
-type MonthlyPoint = {
-  label: string;
-  value: number;
-};
-
-function toNumber(value?: string | number | null) {
-  if (value === null || value === undefined) {
-    return 0;
-  }
-
-  const parsed = typeof value === "number" ? value : Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+function toNum(v?: string | number | null) {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? 0));
+  return isFinite(n) ? n : 0;
 }
+function fmt(v: number) { return `$${v.toFixed(2)}`; }
 
-function formatUsd(value: number) {
-  return `$${value.toFixed(2)}`;
-}
+function buildHistoryFromPoints(pointsInput: PricePoint[], allTimeMin: number, current: number): PricePoint[] {
+  const sorted = [...pointsInput]
+    .filter((p) => p?.date && toNum(p.price) > 0)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
 
-function monthKey(date: Date) {
-  return `${date.getFullYear()}-${date.getMonth()}`;
-}
+  const bucket = new Map<string, PricePoint>();
+  sorted.forEach((p) => {
+    const key = `${p.date.getFullYear()}-${p.date.getMonth()}`;
+    const prev = bucket.get(key);
+    if (!prev || p.price < prev.price) bucket.set(key, p);
+  });
 
-function buildMonthlyHistory(
-  offers: CheapSharkDeal[],
-  cheapestEver: { price: string; date: number } | undefined,
-  currentPrice: number,
-): MonthlyPoint[] {
-  const months: { key: string; label: string }[] = [];
   const now = new Date();
-
-  for (let i = 7; i >= 0; i -= 1) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push({
-      key: monthKey(d),
-      label: d.toLocaleString("en-US", { month: "short" }),
+  const result: PricePoint[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 15);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    const found = bucket.get(key);
+    result.push({
+      date: d,
+      price: found ? found.price : (result.at(-1)?.price ?? current),
+      label: d.toLocaleDateString("es-ES", { month: "short", year: "2-digit" }),
     });
   }
 
-  const bucket = new Map<string, number[]>();
-
-  offers.forEach((deal) => {
-    if (!deal.lastChange) {
-      return;
-    }
-    const d = new Date(deal.lastChange * 1000);
-    const key = monthKey(d);
-    if (!months.some((m) => m.key === key)) {
-      return;
-    }
-    const list = bucket.get(key) ?? [];
-    list.push(toNumber(deal.salePrice));
-    bucket.set(key, list);
-  });
-
-  if (cheapestEver?.date) {
-    const d = new Date(cheapestEver.date * 1000);
-    const key = monthKey(d);
-    if (months.some((m) => m.key === key)) {
-      const list = bucket.get(key) ?? [];
-      list.push(toNumber(cheapestEver.price));
-      bucket.set(key, list);
-    }
+  const hasATL = result.some((p) => p.price <= allTimeMin * 1.01);
+  if (!hasATL && allTimeMin < result[0].price) {
+    result[0].price = allTimeMin;
   }
 
-  const values = months.map((m) => {
-    const inMonth = bucket.get(m.key);
-    if (!inMonth || inMonth.length === 0) {
-      return null;
-    }
-    return Math.min(...inMonth);
-  });
+  return result;
+}
 
-  let firstKnown = values.find((v): v is number => v !== null);
-  if (firstKnown === undefined) {
-    firstKnown = currentPrice;
-  }
-
-  let carry = firstKnown;
-  const filled = values.map((v) => {
-    if (v === null) {
-      return carry;
-    }
-    carry = v;
-    return v;
-  });
-
-  return months.map((m, i) => ({
-    label: m.label,
-    value: filled[i],
+function buildHistory(deals: CheapDeal[], allTimeMin: number, current: number): PricePoint[] {
+  const pointsInput = [...deals]
+    .filter(d => d.lastChange && toNum(d.salePrice) > 0)
+    .map(d => ({
+    date:  new Date(d.lastChange * 1000),
+    price: toNum(d.salePrice),
+    label: new Date(d.lastChange * 1000).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "2-digit" }),
   }));
+  return buildHistoryFromPoints(pointsInput, allTimeMin, current);
 }
 
-function buildInsights(history: MonthlyPoint[], normalPrice: number) {
-  const last = history[history.length - 1]?.value ?? 0;
-  const prev = history[history.length - 2]?.value ?? last;
-  const monthlyLow = Math.min(...history.map((p) => p.value));
-  const discount =
-    normalPrice > 0
-      ? Math.round(((normalPrice - last) / normalPrice) * 100)
-      : 0;
+// ── Price Chart ───────────────────────────────────────────────────────────────
 
-  let recommendationTitle = "Buen momento";
-  let recommendationText =
-    "El precio actual esta por debajo del promedio reciente.";
-  let recommendationTone = "text-[#05df72]";
+function PriceChart({ points, current, atl, normal }: {
+  points:  PricePoint[];
+  current: number;
+  atl:     number;
+  normal:  number;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
 
-  if (last <= monthlyLow * 1.03) {
-    recommendationTitle = "Compra ahora";
-    recommendationText =
-      "El precio esta en su punto mas bajo del periodo analizado.";
-    recommendationTone = "text-[#05df72]";
-  } else if (discount >= 50) {
-    recommendationTitle = "Descuento fuerte";
-    recommendationText = "Tiene una rebaja agresiva frente al precio normal.";
-    recommendationTone = "text-[#05df72]";
-  } else if (last > prev * 1.08) {
-    recommendationTitle = "Mejor esperar";
-    recommendationText =
-      "Subio recientemente y podria volver a bajar en pocos dias.";
-    recommendationTone = "text-[#facc15]";
-  }
+  const W = 560; const H = 220;
+  const PAD = { top: 20, right: 16, bottom: 36, left: 44 };
+  const w = W - PAD.left - PAD.right;
+  const h = H - PAD.top  - PAD.bottom;
 
-  const delta = prev > 0 ? ((last - prev) / prev) * 100 : 0;
-  let trendLabel = "Estable";
-  let trendText =
-    "Se espera que mantenga este precio durante las proximas semanas.";
+  const prices  = points.map(p => p.price);
+  const maxP    = Math.max(...prices, normal) * 1.08;
+  const minP    = Math.max(0, Math.min(...prices, atl) * 0.92);
+  const range   = maxP - minP || 1;
 
-  if (delta > 4) {
-    trendLabel = "Subiendo";
-    trendText =
-      "El precio viene en alza. Activa alerta para no perder una bajada.";
-  } else if (delta < -4) {
-    trendLabel = "Bajando";
-    trendText = "La tendencia es a la baja, podria mejorar aun mas pronto.";
-  }
+  const cx = (i: number) => PAD.left + (i / (points.length - 1)) * w;
+  const cy = (v: number) => PAD.top  + (1 - (v - minP) / range) * h;
 
-  return {
-    recommendationTitle,
-    recommendationText,
-    recommendationTone,
-    trendLabel,
-    trendText,
-  };
-}
+  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${cx(i)} ${cy(p.price)}`).join(" ");
+  const areaD = `${pathD} L ${cx(points.length - 1)} ${PAD.top + h} L ${PAD.left} ${PAD.top + h} Z`;
 
-function PriceChart({ points }: { points: MonthlyPoint[] }) {
-  const width = 620;
-  const height = 250;
-  const chartLeft = 40;
-  const chartRight = 12;
-  const chartTop = 16;
-  const chartBottom = 30;
+  const ticks = 4;
+  const yTicks = Array.from({ length: ticks + 1 }, (_, i) => minP + (range * i) / ticks);
 
-  const values = points.map((p) => p.value);
-  const maxValue = Math.max(10, ...values);
-  const roundedMax = Math.ceil(maxValue / 15) * 15;
-  const yTicks = [
-    0,
-    roundedMax * 0.25,
-    roundedMax * 0.5,
-    roundedMax * 0.75,
-    roundedMax,
-  ].map((v) => Math.round(v));
-
-  const x = (index: number) => {
-    const usable = width - chartLeft - chartRight;
-    return chartLeft + (index * usable) / (points.length - 1);
-  };
-
-  const y = (value: number) => {
-    const usable = height - chartTop - chartBottom;
-    return chartTop + usable - (value / roundedMax) * usable;
-  };
-
-  const path = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p.value)}`)
-    .join(" ");
+  const hoveredPoint = hovered !== null ? points[hovered] : null;
 
   return (
-    <div className="h-[300px] w-full">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
-        {yTicks.map((tick) => {
-          const yPos = y(tick);
+    <div className="relative select-none">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full h-auto"
+        onMouseLeave={() => setHovered(null)}
+      >
+        <defs>
+          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#3b82f6" stopOpacity="0.4"/>
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+
+        {/* y-grid + labels */}
+        {yTicks.map(v => (
+          <g key={v}>
+            <line x1={PAD.left} y1={cy(v)} x2={PAD.left + w} y2={cy(v)} stroke="#1e293b" strokeDasharray="3 4"/>
+            <text x={PAD.left - 6} y={cy(v) + 4} fill="#64748b" fontSize="10" textAnchor="end">{fmt(v)}</text>
+          </g>
+        ))}
+
+        {/* all-time-low reference */}
+        {atl < maxP && atl > minP && (
+          <>
+            <line x1={PAD.left} y1={cy(atl)} x2={PAD.left + w} y2={cy(atl)}
+                  stroke="#22c55e" strokeDasharray="4 3" strokeWidth="1.5" opacity="0.7"/>
+            <text x={PAD.left + w - 2} y={cy(atl) - 4} fill="#22c55e" fontSize="9" textAnchor="end">
+              mínimo histórico {fmt(atl)}
+            </text>
+          </>
+        )}
+
+        {/* normal price reference */}
+        {normal > current && (
+          <>
+            <line x1={PAD.left} y1={cy(normal)} x2={PAD.left + w} y2={cy(normal)}
+                  stroke="#ef4444" strokeDasharray="4 3" strokeWidth="1" opacity="0.5"/>
+            <text x={PAD.left + 2} y={cy(normal) - 4} fill="#ef4444" fontSize="9" opacity="0.7">
+              precio base {fmt(normal)}
+            </text>
+          </>
+        )}
+
+        {/* area */}
+        <path d={areaD} fill="url(#areaGrad)"/>
+
+        {/* line */}
+        <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>
+
+        {/* x labels */}
+        {points.map((p, i) => {
+          if (i % 2 !== 0 && i !== points.length - 1) return null;
           return (
-            <g key={tick}>
-              <line
-                x1={chartLeft}
-                y1={yPos}
-                x2={width - chartRight}
-                y2={yPos}
-                stroke="#1d293d"
-                strokeDasharray="2 4"
-              />
-              <text
-                x={chartLeft - 8}
-                y={yPos + 4}
-                fill="#64748b"
-                fontSize="11"
-                textAnchor="end"
-              >
-                ${tick}
-              </text>
-            </g>
+            <text key={i} x={cx(i)} y={H - 8} fill="#475569" fontSize="9" textAnchor="middle">
+              {p.label}
+            </text>
           );
         })}
 
-        <line
-          x1={chartLeft}
-          y1={height - chartBottom}
-          x2={width - chartRight}
-          y2={height - chartBottom}
-          stroke="#334155"
-        />
-
-        {points.map((point, i) => (
-          <text
-            key={`label-${point.label}`}
-            x={x(i)}
-            y={height - 10}
-            fill="#64748b"
-            fontSize="11"
-            textAnchor="middle"
-          >
-            {point.label}
-          </text>
-        ))}
-
-        <path d={path} fill="none" stroke="#2b7fff" strokeWidth="3" />
-
-        {points.map((point, i) => (
-          <circle
-            key={`point-${point.label}`}
-            cx={x(i)}
-            cy={y(point.value)}
-            r="3.5"
-            fill="#2b7fff"
+        {/* hover zones */}
+        {points.map((p, i) => (
+          <rect
+            key={i}
+            x={cx(i) - w / points.length / 2}
+            y={PAD.top}
+            width={w / points.length}
+            height={h}
+            fill="transparent"
+            onMouseEnter={() => setHovered(i)}
+            className="cursor-crosshair"
           />
         ))}
+
+        {/* hover indicator */}
+        {hovered !== null && hoveredPoint && (
+          <>
+            <line x1={cx(hovered)} y1={PAD.top} x2={cx(hovered)} y2={PAD.top + h}
+                  stroke="#94a3b8" strokeDasharray="3 3" strokeWidth="1"/>
+            <circle cx={cx(hovered)} cy={cy(hoveredPoint.price)} r="5"
+                    fill="#3b82f6" stroke="#0f172a" strokeWidth="2"/>
+          </>
+        )}
       </svg>
+
+      {/* tooltip */}
+      {hoveredPoint && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 pointer-events-none">
+          <div className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs shadow-xl text-center">
+            <p className="text-white font-bold text-sm">{fmt(hoveredPoint.price)}</p>
+            <p className="text-slate-400">{hoveredPoint.label}</p>
+            {hoveredPoint.price <= atl * 1.01 && (
+              <p className="text-emerald-400 font-medium mt-0.5">🏆 Mínimo histórico</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-export function GameDetail() {
-  const { id } = useParams<{ id: string }>();
-  const location = useLocation();
-  const dealFromState = (location.state as { deal?: Deal } | null)?.deal;
+// ── main GameDetail ───────────────────────────────────────────────────────────
 
-  const [loading, setLoading] = useState(true);
-  const [steamGame, setSteamGame] = useState<SteamGame | null>(null);
-  const [gameTitle, setGameTitle] = useState("");
-  const [gameThumb, setGameThumb] = useState("");
-  const [steamAppId, setSteamAppId] = useState<string | null>(null);
-  const [gameId, setGameId] = useState<string | null>(null);
-  const [offers, setOffers] = useState<CheapSharkDeal[]>([]);
-  const [cheapestEver, setCheapestEver] = useState<
-    { price: string; date: number } | undefined
-  >(undefined);
-  const [loadError, setLoadError] = useState("");
+export function GameDetail() {
+  const { id }           = useParams<{ id: string }>();
+  const location         = useLocation();
+  const dealFromState    = (location.state as { deal?: Deal } | null)?.deal;
+
+  const [loading,        setLoading]        = useState(true);
+  const [gameTitle,      setGameTitle]      = useState(dealFromState?.title ?? "");
+  const [gameThumb,      setGameThumb]      = useState(dealFromState?.thumb ?? "");
+  const [steamAppId,     setSteamAppId]     = useState<string | null>(null);
+  const [offers,         setOffers]         = useState<CheapDeal[]>([]);
+  const [itadHistory,    setItadHistory]    = useState<PricePoint[]>([]);
+  const [historySource,  setHistorySource]  = useState<"itad" | "cheapshark">("cheapshark");
+  const [cheapestEver,   setCheapestEver]   = useState<{ price: string; date: number } | undefined>();
+  const [steamGame,      setSteamGame]      = useState<any>(null);
+  const [expanded,       setExpanded]       = useState(false);
+  const [loadError,      setLoadError]      = useState("");
 
   useEffect(() => {
-    if (!id) {
-      return;
-    }
-
+    if (!id) return;
     let cancelled = false;
 
-    const run = async () => {
-      setLoading(true);
-      setLoadError("");
-
+    (async () => {
+      setLoading(true); setLoadError("");
       try {
-        let resolvedSteamApp = dealFromState?.steamAppID || id;
-        let resolvedGameId = dealFromState?.gameID || null;
-        let allOffers: CheapSharkDeal[] = [];
+        let appId  = dealFromState?.steamAppID || id;
+        let gameId = dealFromState?.gameID     || null;
 
-        if (resolvedSteamApp) {
-          const dealsByApp = await axios.get(
-            "https://www.cheapshark.com/api/1.0/deals",
-            {
-              params: { steamAppID: resolvedSteamApp, pageSize: 60 },
-            },
-          );
-          allOffers = dealsByApp.data || [];
-          if (!resolvedGameId && allOffers[0]?.gameID) {
-            resolvedGameId = allOffers[0].gameID;
-          }
-        }
+        // fetch deals by steamAppID
+        const dealsRes = await axios.get("https://www.cheapshark.com/api/1.0/deals", {
+          params: { steamAppID: appId, pageSize: 60, storeID: "1" },
+        });
+        const allDeals: CheapDeal[] = dealsRes.data ?? [];
+        if (!gameId && allDeals[0]?.gameID) gameId = allDeals[0].gameID;
 
-        if (!resolvedGameId) {
-          resolvedGameId = id;
-        }
-
-        let cheapGame: CheapSharkGame | null = null;
-        if (resolvedGameId) {
+        // fetch game metadata from CheapShark
+        let meta: CheapGame | null = null;
+        if (gameId) {
           try {
-            const gameRes = await axios.get(
-              `https://www.cheapshark.com/api/1.0/games`,
-              {
-                params: { id: resolvedGameId },
-              },
-            );
-            cheapGame = gameRes.data;
-            if (!resolvedSteamApp && cheapGame?.info?.steamAppID) {
-              resolvedSteamApp = cheapGame.info.steamAppID;
-            }
-          } catch {
-            // Ignore and continue with available sources.
-          }
+            const r = await axios.get(`https://www.cheapshark.com/api/1.0/games`, { params: { id: gameId } });
+            meta = r.data;
+            if (!appId && meta?.info?.steamAppID) appId = meta.info.steamAppID;
+          } catch { /* ignore */ }
         }
 
-        if (allOffers.length === 0 && resolvedSteamApp) {
-          const fallbackDeals = await axios.get(
-            "https://www.cheapshark.com/api/1.0/deals",
-            {
-              params: { steamAppID: resolvedSteamApp, pageSize: 60 },
-            },
-          );
-          allOffers = fallbackDeals.data || [];
-          if (!resolvedGameId && allOffers[0]?.gameID) {
-            resolvedGameId = allOffers[0].gameID;
-          }
-        }
-
-        let steam: SteamGame | null = null;
-        if (resolvedSteamApp) {
+        // widen history – also fetch by title
+        if (meta?.info?.title) {
           try {
-            const steamRes = await api.get(
-              `/api/steam/app/${resolvedSteamApp}`,
-            );
-            steam = steamRes.data?.data || null;
-          } catch {
-            // Keep working with CheapShark data.
-          }
+            const r2 = await axios.get("https://www.cheapshark.com/api/1.0/deals", {
+              params: { title: meta.info.title, storeID: "1", pageSize: 60 },
+            });
+            const extra: CheapDeal[] = r2.data ?? [];
+            const ids = new Set(allDeals.map(d => d.dealID));
+            extra.forEach(d => { if (!ids.has(d.dealID)) allDeals.push(d); });
+          } catch { /* ignore */ }
         }
 
-        const fallbackTitle =
-          dealFromState?.title || cheapGame?.info?.title || "Juego";
-        const fallbackThumb =
-          dealFromState?.thumb || cheapGame?.info?.thumb || "";
+        // fetch Steam metadata via backend
+        let steam: any = null;
+        if (appId) {
+          try {
+            const r = await api.get(`/api/steam/app/${appId}`);
+            steam = r.data?.data ?? null;
+          } catch { /* ignore */ }
+        }
+
+        let itadPoints: PricePoint[] = [];
+        try {
+          const historyRes = await api.get("/api/steam/itad/history", {
+            params: {
+              appId: appId || undefined,
+              title: meta?.info?.title || dealFromState?.title || undefined,
+              country: "ES",
+            },
+          });
+
+          const rawPoints = Array.isArray(historyRes.data?.points)
+            ? historyRes.data.points
+            : [];
+
+          itadPoints = rawPoints
+            .map((p: any) => {
+              const timestamp = Number(p?.timestamp);
+              const price = toNum(p?.price);
+              if (!Number.isFinite(timestamp) || price <= 0) return null;
+              const d = new Date(timestamp);
+              if (Number.isNaN(d.getTime())) return null;
+              return {
+                date: d,
+                price,
+                label: d.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "2-digit" }),
+              } as PricePoint;
+            })
+            .filter(Boolean) as PricePoint[];
+        } catch {
+          // Fall back to CheapShark history when ITAD is unavailable.
+        }
 
         if (!cancelled) {
+          const fallbackTitle = meta?.info?.title ?? dealFromState?.title ?? "Juego";
+          const fallbackThumb = meta?.info?.thumb  ?? dealFromState?.thumb ?? "";
+          setGameTitle(steam?.name       ?? fallbackTitle);
+          setGameThumb(steam?.header_image ?? fallbackThumb);
+          setSteamAppId(appId ?? meta?.info?.steamAppID ?? null);
+          setOffers(allDeals);
+          setItadHistory(itadPoints);
+          setHistorySource(itadPoints.length > 0 ? "itad" : "cheapshark");
+          setCheapestEver(meta?.cheapestPriceEver);
           setSteamGame(steam);
-          setGameTitle(steam?.name || fallbackTitle);
-          setGameThumb(steam?.header_image || fallbackThumb);
-          setSteamAppId(
-            resolvedSteamApp || cheapGame?.info?.steamAppID || null,
-          );
-          setGameId(resolvedGameId);
-          setOffers(allOffers);
-          setCheapestEver(cheapGame?.cheapestPriceEver);
-
-          if (!steam && !cheapGame && allOffers.length === 0) {
-            setLoadError(
-              "No se pudo obtener informacion real para este juego.",
-            );
-          }
+          if (!steam && !meta && !allDeals.length) setLoadError("No se pudo obtener información para este juego.");
         }
       } catch {
-        if (!cancelled) {
-          setLoadError("Error al cargar la informacion del juego.");
-        }
+        if (!cancelled) setLoadError("Error al cargar la información del juego.");
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
-    };
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [dealFromState, id]);
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
 
   const currentPrice = useMemo(() => {
-    if (offers.length > 0) {
-      return Math.min(...offers.map((o) => toNumber(o.salePrice)));
-    }
-    return toNumber(dealFromState?.salePrice);
-  }, [dealFromState?.salePrice, offers]);
+    if (offers.length) return Math.min(...offers.map(o => toNum(o.salePrice)));
+    return toNum(dealFromState?.salePrice);
+  }, [offers, dealFromState]);
 
   const normalPrice = useMemo(() => {
-    if (offers.length > 0) {
-      return Math.max(...offers.map((o) => toNumber(o.normalPrice)));
-    }
-    return toNumber(dealFromState?.normalPrice);
-  }, [dealFromState?.normalPrice, offers]);
+    if (offers.length) return Math.max(...offers.map(o => toNum(o.normalPrice)));
+    return toNum(dealFromState?.normalPrice);
+  }, [offers, dealFromState]);
 
-  const historicMin = useMemo(() => {
-    if (cheapestEver?.price) {
-      return toNumber(cheapestEver.price);
-    }
-    return currentPrice;
-  }, [cheapestEver, currentPrice]);
+  const atl = toNum(cheapestEver?.price) || currentPrice;
 
-  const history = useMemo(
-    () => buildMonthlyHistory(offers, cheapestEver, currentPrice || 1),
-    [cheapestEver, currentPrice, offers],
+  const priceHistory = useMemo(() => {
+    if (itadHistory.length > 0) {
+      return buildHistoryFromPoints(itadHistory, atl, currentPrice || 1);
+    }
+    return buildHistory(offers, atl, currentPrice || 1);
+  }, [itadHistory, offers, atl, currentPrice]);
+
+  const discount    = normalPrice > 0 ? Math.round(((normalPrice - currentPrice) / normalPrice) * 100) : 0;
+  const atlDiscount = normalPrice > 0 ? Math.round(((normalPrice - atl) / normalPrice) * 100) : 0;
+
+  const priceTrend = useMemo(() => {
+    if (priceHistory.length < 3) return "stable";
+    const recent = priceHistory.slice(-3).map(p => p.price);
+    const first  = priceHistory.slice(0, 3).map(p => p.price);
+    const avgR   = recent.reduce((a, b) => a + b, 0) / 3;
+    const avgF   = first.reduce((a, b) => a + b, 0) / 3;
+    if (avgR < avgF * 0.92) return "down";
+    if (avgR > avgF * 1.08) return "up";
+    return "stable";
+  }, [priceHistory]);
+
+  const recommendation = useMemo(() => {
+    if (currentPrice <= atl * 1.03) return { label: "Compra ahora", color: "text-emerald-400", icon: "🏆" };
+    if (discount >= 60)             return { label: "Gran oferta",  color: "text-emerald-400", icon: "🔥" };
+    if (discount >= 30)             return { label: "Buen descuento", color: "text-blue-400",  icon: "👍" };
+    if (priceTrend === "down")      return { label: "Precio bajando", color: "text-yellow-400", icon: "📉" };
+    return { label: "Precio estable", color: "text-slate-400", icon: "📊" };
+  }, [currentPrice, atl, discount, priceTrend]);
+
+  const steamStoreUrl = steamAppId ? `https://store.steampowered.com/app/${steamAppId}` : undefined;
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-[60vh]">
+      <div className="text-center">
+        <Loader2 className="animate-spin text-blue-500 mx-auto mb-3" size={32}/>
+        <p className="text-slate-400 text-sm">Cargando análisis…</p>
+      </div>
+    </div>
   );
 
-  const insights = useMemo(
-    () => buildInsights(history, normalPrice),
-    [history, normalPrice],
+  if (loadError) return (
+    <div className="max-w-3xl mx-auto pb-20 pt-8">
+      <Link to="/market" className="inline-flex items-center gap-2 text-slate-400 hover:text-white text-sm">
+        <ArrowLeft size={16}/> Volver
+      </Link>
+      <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-10 text-center">
+        <p className="text-white text-xl font-bold mb-2">No se pudo cargar</p>
+        <p className="text-slate-400 text-sm">{loadError}</p>
+      </div>
+    </div>
   );
-
-  const bestDeal = useMemo(() => {
-    if (offers.length === 0) {
-      return null;
-    }
-
-    return [...offers].sort(
-      (a, b) => toNumber(a.salePrice) - toNumber(b.salePrice),
-    )[0];
-  }, [offers]);
-
-  const minDiscount =
-    normalPrice > 0
-      ? Math.round(((normalPrice - historicMin) / normalPrice) * 100)
-      : 0;
-
-  const trendUp = insights.trendLabel === "Subiendo";
-  const trendDown = insights.trendLabel === "Bajando";
-
-  const handleWishlist = () => {
-    const key = "steamates_wishlist";
-    const list = JSON.parse(localStorage.getItem(key) || "[]") as string[];
-    const identifier = steamAppId || gameId || gameTitle;
-
-    if (!list.includes(identifier)) {
-      list.push(identifier);
-      localStorage.setItem(key, JSON.stringify(list));
-      toast.success("Juego añadido a tu wishlist");
-      return;
-    }
-
-    toast.info("Este juego ya estaba en tu wishlist");
-  };
-
-  const handleAlert = () => {
-    toast.success("Alerta de precio creada", {
-      description: `Te avisaremos cuando ${gameTitle} baje de ${formatUsd(currentPrice || 0)}.`,
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-center">
-          <Loader2
-            className="animate-spin text-blue-500 mx-auto mb-3"
-            size={34}
-          />
-          <p className="text-slate-400 text-sm">
-            Cargando análisis del juego...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 pb-20 pt-8">
-        <Link
-          to="/market"
-          className="inline-flex items-center gap-2 text-[#90a1b9] hover:text-white text-[16px]"
-        >
-          <ArrowLeft size={18} /> Volver al Mercado
-        </Link>
-
-        <div className="mt-6 rounded-2xl border border-[#1d293d] bg-[#0f172b] p-10 text-center">
-          <h2 className="text-white text-2xl font-bold mb-2">
-            No se pudo cargar el juego
-          </h2>
-          <p className="text-[#90a1b9] text-sm">{loadError}</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="pb-20">
-      <Link
-        to="/market"
-        className="inline-flex items-center gap-2 text-[#90a1b9] hover:text-white text-[16px]"
-      >
-        <ArrowLeft size={20} /> Volver al Mercado
+    <div className="pb-20 max-w-6xl mx-auto">
+      <Link to="/market" className="inline-flex items-center gap-2 text-slate-400 hover:text-white text-sm mb-8">
+        <ArrowLeft size={16}/> Volver al Mercado
       </Link>
 
-      <div className="mt-8 grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-8">
-        <aside className="space-y-4">
-          <div className="h-[2px] rounded-2xl border border-[#1d293d]" />
+      {/* hero banner */}
+      <div className="relative rounded-2xl overflow-hidden mb-8 h-52 md:h-64">
+        {gameThumb ? (
+          <img src={gameThumb} alt={gameTitle} className="w-full h-full object-cover"/>
+        ) : (
+          <div className="w-full h-full bg-slate-800 flex items-center justify-center">
+            <Package size={48} className="text-slate-600"/>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/70 to-transparent"/>
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent"/>
+        <div className="absolute bottom-6 left-6 right-6">
+          <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">{gameTitle}</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            {discount > 0 && (
+              <span className="bg-emerald-500 text-white text-sm font-bold px-2.5 py-0.5 rounded-lg">
+                -{discount}%
+              </span>
+            )}
+            <span className="text-2xl font-black text-white">{fmt(currentPrice)}</span>
+            {normalPrice > currentPrice && (
+              <span className="text-slate-400 line-through text-sm">{fmt(normalPrice)}</span>
+            )}
+          </div>
+        </div>
+      </div>
 
-          <div className="rounded-[14px] border border-[#1d293d] bg-[#0f172b] p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[#90a1b9] text-[16px]">Precio Actual</span>
-              <span className="text-[#05df72] text-[24px] font-bold">
-                {formatUsd(currentPrice)}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-8">
+
+        {/* ── left: price analysis ─────────────────────────────────────────── */}
+        <div className="space-y-6">
+
+          {/* price history card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-lg font-bold text-white">Historial de Precios</h2>
+              <span className="text-[11px] text-slate-500 bg-slate-800 px-2 py-1 rounded-full">
+                {historySource === "itad"
+                  ? "últimos 12 meses · IsThereAnyDeal"
+                  : "últimos 12 meses · CheapShark"}
               </span>
             </div>
+            <p className="text-sm text-slate-500 mb-4">
+              Pasa el ratón sobre la gráfica para ver el precio en cada fecha.
+            </p>
+            <PriceChart points={priceHistory} current={currentPrice} atl={atl} normal={normalPrice}/>
+          </div>
 
-            <div className="flex items-center justify-between">
-              <span className="text-[#62748e] text-[14px]">
-                Minimo Historico
-              </span>
-              <span className="text-[#cad5e2] text-[14px]">
-                {formatUsd(historicMin)}{" "}
-                {minDiscount > 0 ? `(-${minDiscount}%)` : ""}
-              </span>
+          {/* stats row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: "Precio actual", value: fmt(currentPrice), color: "text-emerald-400", icon: <Tag size={16}/> },
+              { label: "Precio base",   value: fmt(normalPrice),  color: "text-slate-300",   icon: <Package size={16}/> },
+              { label: "Mínimo histórico", value: `${fmt(atl)} (-${atlDiscount}%)`, color: "text-green-400", icon: <Award size={16}/> },
+              { label: "Tendencia",     value: priceTrend === "down" ? "Bajando ↓" : priceTrend === "up" ? "Subiendo ↑" : "Estable →",
+                                        color: priceTrend === "down" ? "text-green-400" : priceTrend === "up" ? "text-red-400" : "text-slate-400",
+                                        icon: priceTrend === "down" ? <TrendingDown size={16}/> : <TrendingUp size={16}/> },
+            ].map(s => (
+              <div key={s.label} className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <div className="flex items-center gap-1.5 text-slate-500 text-xs mb-1.5">{s.icon}{s.label}</div>
+                <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* insight cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Info size={15} className="text-blue-400"/>
+                <span className="text-sm text-slate-400">Recomendación IA</span>
+              </div>
+              <p className={`text-base font-bold ${recommendation.color}`}>
+                {recommendation.icon} {recommendation.label}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                {currentPrice <= atl * 1.03
+                  ? "El precio está en su punto más bajo. Ideal para comprar."
+                  : discount >= 60
+                  ? `Descuento agresivo del ${discount}%. Muy por debajo del precio base.`
+                  : discount >= 30
+                  ? `${discount}% de descuento sobre el precio base.`
+                  : priceTrend === "down"
+                  ? "El precio ha bajado en los últimos meses. Podría bajar más."
+                  : "El precio se mantiene estable. Espera una oferta mejor."}
+              </p>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Clock size={15} className="text-purple-400"/>
+                <span className="text-sm text-slate-400">Mejor momento de compra</span>
+              </div>
+              <p className="text-base font-bold text-white">
+                {currentPrice <= atl * 1.05 ? "Ahora mismo" :
+                 "Próximas rebajas"}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                {atl < currentPrice
+                  ? `El precio mínimo fue ${fmt(atl)}. Puedes ahorrar ${fmt(currentPrice - atl)} esperando.`
+                  : "El precio actual está cerca del mínimo histórico."}
+              </p>
+            </div>
+          </div>
+
+          {/* price breakdown toggle */}
+          {offers.length > 1 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+              <button
+                onClick={() => setExpanded(p => !p)}
+                className="w-full flex items-center justify-between px-5 py-3.5 text-sm text-slate-300 hover:text-white hover:bg-slate-800/50 transition-colors"
+              >
+                <span className="flex items-center gap-2 font-medium">
+                  <Star size={15} className="text-amber-400"/>
+                  Historial de ofertas ({offers.length} registros)
+                </span>
+                {expanded ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
+              </button>
+              {expanded && (
+                <div className="divide-y divide-slate-800/60">
+                  {[...offers]
+                    .sort((a, b) => b.lastChange - a.lastChange)
+                    .slice(0, 12)
+                    .map(o => (
+                      <div key={o.dealID} className="flex items-center justify-between px-5 py-2.5 text-xs">
+                        <span className="text-slate-400">
+                          {new Date(o.lastChange * 1000).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          {parseFloat(o.savings) > 5 && (
+                            <span className="text-emerald-500 font-medium">-{Math.round(parseFloat(o.savings))}%</span>
+                          )}
+                          <span className="text-white font-bold">{fmt(toNum(o.salePrice))}</span>
+                          <span className="text-slate-600 line-through">{fmt(toNum(o.normalPrice))}</span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── right: action sidebar ─────────────────────────────────────────── */}
+        <div className="space-y-4">
+
+          {/* game thumb */}
+          {gameThumb && (
+            <img src={gameThumb} alt={gameTitle}
+                 className="w-full rounded-xl border border-slate-800 hidden xl:block"/>
+          )}
+
+          {/* price card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+            <div>
+              <div className="flex items-end gap-3">
+                <span className="text-3xl font-black text-emerald-400">{fmt(currentPrice)}</span>
+                {normalPrice > currentPrice && (
+                  <span className="text-slate-500 line-through text-sm pb-1">{fmt(normalPrice)}</span>
+                )}
+              </div>
+              {discount > 0 && (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="bg-emerald-500/20 text-emerald-400 text-xs font-bold px-2 py-0.5 rounded">
+                    Ahorras {fmt(normalPrice - currentPrice)} ({discount}%)
+                  </span>
+                </div>
+              )}
             </div>
 
             <a
-              href={
-                steamAppId
-                  ? `https://store.steampowered.com/app/${steamAppId}`
-                  : undefined
-              }
+              href={steamStoreUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="h-12 rounded-[10px] bg-[#155dfc] text-white font-bold text-[16px] inline-flex items-center justify-center gap-2 w-full"
+              className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all ${
+                steamStoreUrl
+                  ? "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/30"
+                  : "bg-slate-800 text-slate-500 cursor-not-allowed"
+              }`}
             >
-              <ShoppingCart size={18} /> Ver en Steam
+              <ShoppingCart size={16}/>
+              Ver en Steam
+              <ExternalLink size={13}/>
             </a>
 
             <button
-              type="button"
-              onClick={handleWishlist}
-              className="h-12 rounded-[10px] border border-[#314158] bg-[#1d293d] text-white font-bold text-[16px] inline-flex items-center justify-center gap-2 w-full"
+              onClick={() => {
+                const key = "steamates_wishlist";
+                const list = JSON.parse(localStorage.getItem(key) ?? "[]");
+                const id2 = steamAppId ?? gameTitle;
+                if (!list.includes(id2)) {
+                  list.push(id2);
+                  localStorage.setItem(key, JSON.stringify(list));
+                  toast.success("Añadido a tu wishlist");
+                } else {
+                  toast.info("Ya está en tu wishlist");
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-sm font-medium transition-colors"
             >
-              <Heart size={18} /> Añadir a Wishlist
+              <Heart size={15}/> Wishlist
             </button>
 
             <button
-              type="button"
-              onClick={handleAlert}
-              className="h-12 rounded-[10px] border border-[#314158] bg-[#1d293d] text-[#fdc700] font-bold text-[16px] inline-flex items-center justify-center gap-2 w-full"
+              onClick={() => toast.success(`Alerta creada para ${gameTitle}`, {
+                description: `Te avisaremos si baja de ${fmt(currentPrice)}.`
+              })}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-400 text-sm font-medium transition-colors"
             >
-              <Bell size={18} /> Crear Alerta
+              <Bell size={15}/> Alerta de precio
             </button>
           </div>
 
-          <div className="rounded-[14px] border border-[#1d293d] bg-[#0f172b] p-4">
-            <div className="flex items-start gap-3">
-              <img
-                src={gameThumb}
-                alt={gameTitle}
-                className="w-16 h-16 rounded-lg object-cover border border-[#1d293d]"
-              />
-              <div>
-                <p className="text-white text-sm font-semibold line-clamp-2">
-                  {gameTitle}
-                </p>
-                <p className="text-[#62748e] text-xs mt-1">
-                  {bestDeal
-                    ? `Mejor oferta: ${formatUsd(toNumber(bestDeal.salePrice))}`
-                    : "Sin ofertas activas"}
-                </p>
+          {/* price summary */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2 text-sm">
+            {[
+              { label: "Precio actual",       value: fmt(currentPrice),            color: "text-emerald-400" },
+              { label: "Precio base",          value: fmt(normalPrice),             color: "text-white" },
+              { label: "Mínimo histórico",     value: fmt(atl),                     color: "text-green-400" },
+              { label: "Ahorro máximo",        value: `-${atlDiscount}%`,           color: "text-green-400" },
+            ].map(row => (
+              <div key={row.label} className="flex items-center justify-between">
+                <span className="text-slate-500">{row.label}</span>
+                <span className={`font-semibold ${row.color}`}>{row.value}</span>
               </div>
+            ))}
+          </div>
+
+          {/* steam description */}
+          {steamGame?.short_description && (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+              <p className="text-xs text-slate-400 leading-relaxed line-clamp-4">
+                {steamGame.short_description}
+              </p>
             </div>
-          </div>
-        </aside>
-
-        <section className="space-y-6">
-          <div>
-            <h1 className="text-[36px] leading-[40px] font-bold text-white">
-              Analisis de Precio
-            </h1>
-            <p className="text-[#90a1b9] text-[16px] mt-1">
-              Histórico de fluctuacion en los ultimos 6 meses.
-            </p>
-          </div>
-
-          <article className="rounded-[16px] border border-[#1d293d] bg-[#0f172b] p-6 shadow-[0px_20px_25px_0px_rgba(0,0,0,0.1)]">
-            <h2 className="text-white text-[18px] leading-7 font-bold mb-3">
-              Historial de Precios
-            </h2>
-            <PriceChart points={history} />
-          </article>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <article className="rounded-[14px] border border-[#1d293d] bg-[#0f172b] p-4">
-              <h3 className="text-[#90a1b9] text-[14px] leading-5 font-medium">
-                Recomendación IA
-              </h3>
-              <p className="text-white text-[16px] leading-6 font-bold mt-1">
-                {insights.recommendationTitle}
-              </p>
-              <p
-                className={`text-[12px] leading-4 mt-1 ${insights.recommendationTone}`}
-              >
-                {insights.recommendationText}
-              </p>
-            </article>
-
-            <article className="rounded-[14px] border border-[#1d293d] bg-[#0f172b] p-4">
-              <div className="flex items-center gap-2">
-                <h3 className="text-[#90a1b9] text-[14px] leading-5 font-medium">
-                  Tendencia
-                </h3>
-                {trendUp && <TrendingUp size={14} className="text-[#facc15]" />}
-                {trendDown && (
-                  <TrendingDown size={14} className="text-[#05df72]" />
-                )}
-              </div>
-              <p className="text-white text-[16px] leading-6 font-bold mt-1">
-                {insights.trendLabel}
-              </p>
-              <p className="text-[#62748e] text-[12px] leading-4 mt-1">
-                {insights.trendText}
-              </p>
-            </article>
-          </div>
-        </section>
+          )}
+        </div>
       </div>
     </div>
   );
