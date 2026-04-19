@@ -241,6 +241,9 @@ export function GameDetail() {
   const [hasAlert,       setHasAlert]       = useState(false);
   const [wishlistBusy,   setWishlistBusy]   = useState(false);
   const [alertBusy,      setAlertBusy]      = useState(false);
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [targetPriceInput, setTargetPriceInput] = useState("");
+  const [alertInputError, setAlertInputError] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -486,32 +489,47 @@ export function GameDetail() {
       return;
     }
 
-    setAlertBusy(true);
-    try {
-      if (hasAlert) {
+    if (hasAlert) {
+      setAlertBusy(true);
+      try {
         await deletePriceAlert(marketIdentity);
         setHasAlert(false);
         toast.success("Alerta eliminada");
-        return;
+      } catch (error: any) {
+        const message = error?.response?.data?.error;
+        toast.error(message || "No se pudo gestionar la alerta");
+      } finally {
+        setAlertBusy(false);
       }
+      return;
+    }
 
-      const suggestedTarget = currentPrice > 0
-        ? Math.max(0.5, currentPrice * 0.9).toFixed(2)
-        : "1.00";
+    const suggestedTarget = currentPrice > 0
+      ? Math.max(0.5, currentPrice * 0.9).toFixed(2)
+      : "1.00";
 
-      const input = window.prompt(
-        `Precio objetivo para ${gameTitle} (USD):`,
-        suggestedTarget,
-      );
+    setTargetPriceInput(suggestedTarget);
+    setAlertInputError("");
+    setShowAlertModal(true);
+  };
 
-      if (input === null) return;
+  const closeAlertModal = () => {
+    if (alertBusy) return;
+    setShowAlertModal(false);
+    setAlertInputError("");
+  };
 
-      const targetPrice = Number(input.replace(",", "."));
-      if (!Number.isFinite(targetPrice) || targetPrice <= 0) {
-        toast.error("Ingresa un precio objetivo válido");
-        return;
-      }
+  const handleCreateAlert = async () => {
+    const targetPrice = Number(targetPriceInput.replace(",", "."));
+    if (!Number.isFinite(targetPrice) || targetPrice <= 0) {
+      setAlertInputError("Ingresa un precio objetivo válido");
+      return;
+    }
 
+    setAlertInputError("");
+    setAlertBusy(true);
+
+    try {
       await createPriceAlert({
         steamAppId: steamAppId || undefined,
         gameId: requestGameId,
@@ -520,6 +538,7 @@ export function GameDetail() {
         targetPrice,
       });
       setHasAlert(true);
+      setShowAlertModal(false);
       toast.success("Alerta de precio creada", {
         description: `Te avisaremos cuando baje de ${fmt(targetPrice)}.`,
       });
@@ -530,6 +549,20 @@ export function GameDetail() {
       setAlertBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (!showAlertModal) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !alertBusy) {
+        setShowAlertModal(false);
+        setAlertInputError("");
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showAlertModal, alertBusy]);
 
   if (loading) return (
     <div className="flex items-center justify-center h-[60vh]">
@@ -765,7 +798,7 @@ export function GameDetail() {
               }`}
             >
               {alertBusy ? <Loader2 size={15} className="animate-spin" /> : <Bell size={15}/>}
-              {hasAlert ? "Eliminar alerta" : "Alerta de precio"}
+              {hasAlert ? "Eliminar alerta" : "Crear alerta de precio"}
             </button>
 
             {user && (
@@ -803,6 +836,61 @@ export function GameDetail() {
           )}
         </div>
       </div>
+
+      {showAlertModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={closeAlertModal}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-white">Crear alerta de precio</h3>
+            <p className="text-sm text-slate-400 mt-1">
+              Te avisaremos cuando {gameTitle} baje de tu objetivo.
+            </p>
+
+            <div className="mt-4 space-y-2">
+              <label htmlFor="target-price" className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                Precio objetivo (USD)
+              </label>
+              <input
+                id="target-price"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={targetPriceInput}
+                onChange={(event) => setTargetPriceInput(event.target.value)}
+                placeholder="Ej: 9.99"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 text-sm focus:outline-none focus:border-blue-500"
+              />
+              {alertInputError && <p className="text-xs text-red-400">{alertInputError}</p>}
+              <p className="text-xs text-slate-500">
+                Precio actual: <span className="text-emerald-400 font-semibold">{fmt(currentPrice)}</span>
+              </p>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={closeAlertModal}
+                disabled={alertBusy}
+                className="px-4 py-2 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 text-sm hover:bg-slate-700 transition-colors disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateAlert}
+                disabled={alertBusy}
+                className="px-4 py-2 rounded-lg border border-blue-700/40 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors disabled:opacity-60 inline-flex items-center gap-2"
+              >
+                {alertBusy ? <Loader2 size={14} className="animate-spin" /> : null}
+                {alertBusy ? "Guardando..." : "Guardar alerta"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
