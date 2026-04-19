@@ -262,8 +262,13 @@ export function GameDetail() {
               params: { title: meta.info.title, storeID: "1", pageSize: 60 },
             });
             const extra: CheapDeal[] = r2.data ?? [];
+            const filteredExtra = extra.filter((deal) => {
+              const sameSteamApp = appId && deal?.steamAppID && String(deal.steamAppID) === String(appId);
+              const sameGameId = gameId && deal?.gameID && String(deal.gameID) === String(gameId);
+              return Boolean(sameSteamApp || sameGameId);
+            });
             const ids = new Set(allDeals.map(d => d.dealID));
-            extra.forEach(d => { if (!ids.has(d.dealID)) allDeals.push(d); });
+            filteredExtra.forEach(d => { if (!ids.has(d.dealID)) allDeals.push(d); });
           } catch { /* ignore */ }
         }
 
