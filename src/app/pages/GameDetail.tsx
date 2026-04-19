@@ -8,8 +8,16 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { toast } from "sonner";
-import api from "../../lib/api";
+import api, {
+  addWishlistItem,
+  createPriceAlert,
+  deletePriceAlert,
+  getPriceAlerts,
+  getWishlist,
+  removeWishlistItem,
+} from "../../lib/api";
 import type { Deal } from "../components/market/DealCard";
+import { useAuth } from "../context/AuthContext";
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -212,6 +220,7 @@ function PriceChart({ points, current, atl, normal }: {
 // ── main GameDetail ───────────────────────────────────────────────────────────
 
 export function GameDetail() {
+  const { user, login } = useAuth();
   const { id }           = useParams<{ id: string }>();
   const location         = useLocation();
   const dealFromState    = (location.state as { deal?: Deal } | null)?.deal;
@@ -220,6 +229,7 @@ export function GameDetail() {
   const [gameTitle,      setGameTitle]      = useState(dealFromState?.title ?? "");
   const [gameThumb,      setGameThumb]      = useState(dealFromState?.thumb ?? "");
   const [steamAppId,     setSteamAppId]     = useState<string | null>(null);
+  const [cheapGameId,    setCheapGameId]    = useState<string | null>(dealFromState?.gameID ?? null);
   const [offers,         setOffers]         = useState<CheapDeal[]>([]);
   const [itadHistory,    setItadHistory]    = useState<PricePoint[]>([]);
   const [historySource,  setHistorySource]  = useState<"itad" | "cheapshark">("cheapshark");
@@ -227,6 +237,10 @@ export function GameDetail() {
   const [steamGame,      setSteamGame]      = useState<any>(null);
   const [expanded,       setExpanded]       = useState(false);
   const [loadError,      setLoadError]      = useState("");
+  const [isWishlisted,   setIsWishlisted]   = useState(false);
+  const [hasAlert,       setHasAlert]       = useState(false);
+  const [wishlistBusy,   setWishlistBusy]   = useState(false);
+  const [alertBusy,      setAlertBusy]      = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -319,6 +333,7 @@ export function GameDetail() {
           setGameTitle(steam?.name       ?? fallbackTitle);
           setGameThumb(steam?.header_image ?? fallbackThumb);
           setSteamAppId(appId ?? meta?.info?.steamAppID ?? null);
+          setCheapGameId(gameId ?? null);
           setOffers(allDeals);
           setItadHistory(itadPoints);
           setHistorySource(itadPoints.length > 0 ? "itad" : "cheapshark");
@@ -377,6 +392,144 @@ export function GameDetail() {
   }, [currentPrice, atl, discount, priceTrend]);
 
   const steamStoreUrl = steamAppId ? `https://store.steampowered.com/app/${steamAppId}` : undefined;
+  const marketIdentity = String(steamAppId || cheapGameId || id || "").trim();
+  const requestGameId = (cheapGameId || (!steamAppId ? String(id || "").trim() : "")) || undefined;
+
+  useEffect(() => {
+    if (!user || !marketIdentity) {
+      setIsWishlisted(false);
+      setHasAlert(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [wishlistRes, alertsRes] = await Promise.all([
+          getWishlist({ live: false }),
+          getPriceAlerts({ live: false }),
+        ]);
+
+        const wishlist = Array.isArray(wishlistRes.data?.wishlist) ? wishlistRes.data.wishlist : [];
+        const alerts = Array.isArray(alertsRes.data?.alerts) ? alertsRes.data.alerts : [];
+
+        const onWishlist = wishlist.some((item: any) =>
+          String(item?.steamAppId || "") === marketIdentity || String(item?.gameId || "") === marketIdentity,
+        );
+        const onAlerts = alerts.some((item: any) =>
+          String(item?.steamAppId || "") === marketIdentity || String(item?.gameId || "") === marketIdentity,
+        );
+
+        if (!cancelled) {
+          setIsWishlisted(onWishlist);
+          setHasAlert(onAlerts);
+        }
+      } catch {
+        if (!cancelled) {
+          setIsWishlisted(false);
+          setHasAlert(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, marketIdentity]);
+
+  const handleWishlist = async () => {
+    if (!user) {
+      toast.info("Inicia sesión para usar tu wishlist");
+      login();
+      return;
+    }
+
+    if (!marketIdentity) {
+      toast.error("No se pudo identificar el juego");
+      return;
+    }
+
+    setWishlistBusy(true);
+    try {
+      if (isWishlisted) {
+        await removeWishlistItem(marketIdentity);
+        setIsWishlisted(false);
+        toast.success("Eliminado de tu wishlist");
+      } else {
+        await addWishlistItem({
+          steamAppId: steamAppId || undefined,
+          gameId: requestGameId,
+          title: gameTitle,
+          thumb: gameThumb,
+        });
+        setIsWishlisted(true);
+        toast.success("Añadido a tu wishlist");
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.error;
+      toast.error(message || "No se pudo actualizar la wishlist");
+    } finally {
+      setWishlistBusy(false);
+    }
+  };
+
+  const handlePriceAlert = async () => {
+    if (!user) {
+      toast.info("Inicia sesión para crear alertas de precio");
+      login();
+      return;
+    }
+
+    if (!marketIdentity) {
+      toast.error("No se pudo identificar el juego");
+      return;
+    }
+
+    setAlertBusy(true);
+    try {
+      if (hasAlert) {
+        await deletePriceAlert(marketIdentity);
+        setHasAlert(false);
+        toast.success("Alerta eliminada");
+        return;
+      }
+
+      const suggestedTarget = currentPrice > 0
+        ? Math.max(0.5, currentPrice * 0.9).toFixed(2)
+        : "1.00";
+
+      const input = window.prompt(
+        `Precio objetivo para ${gameTitle} (USD):`,
+        suggestedTarget,
+      );
+
+      if (input === null) return;
+
+      const targetPrice = Number(input.replace(",", "."));
+      if (!Number.isFinite(targetPrice) || targetPrice <= 0) {
+        toast.error("Ingresa un precio objetivo válido");
+        return;
+      }
+
+      await createPriceAlert({
+        steamAppId: steamAppId || undefined,
+        gameId: requestGameId,
+        title: gameTitle,
+        thumb: gameThumb,
+        targetPrice,
+      });
+      setHasAlert(true);
+      toast.success("Alerta de precio creada", {
+        description: `Te avisaremos cuando baje de ${fmt(targetPrice)}.`,
+      });
+    } catch (error: any) {
+      const message = error?.response?.data?.error;
+      toast.error(message || "No se pudo gestionar la alerta");
+    } finally {
+      setAlertBusy(false);
+    }
+  };
 
   if (loading) return (
     <div className="flex items-center justify-center h-[60vh]">
@@ -590,31 +743,39 @@ export function GameDetail() {
             </a>
 
             <button
-              onClick={() => {
-                const key = "steamates_wishlist";
-                const list = JSON.parse(localStorage.getItem(key) ?? "[]");
-                const id2 = steamAppId ?? gameTitle;
-                if (!list.includes(id2)) {
-                  list.push(id2);
-                  localStorage.setItem(key, JSON.stringify(list));
-                  toast.success("Añadido a tu wishlist");
-                } else {
-                  toast.info("Ya está en tu wishlist");
-                }
-              }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-sm font-medium transition-colors"
+              onClick={handleWishlist}
+              disabled={wishlistBusy}
+              className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-colors disabled:opacity-60 ${
+                isWishlisted
+                  ? "border-rose-700/40 bg-rose-900/20 hover:bg-rose-900/30 text-rose-300"
+                  : "border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
+              }`}
             >
-              <Heart size={15}/> Wishlist
+              {wishlistBusy ? <Loader2 size={15} className="animate-spin" /> : <Heart size={15}/>}
+              {isWishlisted ? "Quitar de wishlist" : "Añadir a wishlist"}
             </button>
 
             <button
-              onClick={() => toast.success(`Alerta creada para ${gameTitle}`, {
-                description: `Te avisaremos si baja de ${fmt(currentPrice)}.`
-              })}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-400 text-sm font-medium transition-colors"
+              onClick={handlePriceAlert}
+              disabled={alertBusy}
+              className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition-colors disabled:opacity-60 ${
+                hasAlert
+                  ? "border-red-700/40 bg-red-900/20 hover:bg-red-900/40 text-red-300"
+                  : "border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-400"
+              }`}
             >
-              <Bell size={15}/> Alerta de precio
+              {alertBusy ? <Loader2 size={15} className="animate-spin" /> : <Bell size={15}/>}
+              {hasAlert ? "Eliminar alerta" : "Alerta de precio"}
             </button>
+
+            {user && (
+              <Link
+                to="/market/tracking"
+                className="block text-center text-xs text-slate-400 hover:text-blue-400 transition-colors"
+              >
+                Gestionar wishlist y alertas
+              </Link>
+            )}
           </div>
 
           {/* price summary */}

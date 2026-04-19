@@ -3,6 +3,7 @@ import { Toaster } from 'sonner';
 import { Layout } from './components/layout/Layout';
 import { Home } from './pages/Home';
 import { Market } from './pages/Market';
+import { MarketTracking } from './pages/MarketTracking';
 import { Lists } from './pages/Lists';
 import { ListDetail } from './pages/ListDetail';
 import { Profile } from './pages/Profile';
@@ -23,6 +24,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, Component: Home },
       { path: "market", Component: Market },
+      { path: "market/tracking", Component: MarketTracking },
       { path: "game/:id", Component: GameDetail },
       { path: "lists", Component: Lists },
       { path: "lists/:id", Component: ListDetail },

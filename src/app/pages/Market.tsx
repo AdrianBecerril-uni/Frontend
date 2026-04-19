@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import {
-  Search, ArrowUpDown, Gamepad2, Car, Sword, Ghost,
-  Zap, ChevronDown, Star, Sparkles, Loader2, RefreshCw,
+  Search, ArrowUpDown, ChevronDown, Star, Sparkles, Loader2, RefreshCw,
   TrendingDown, Lock, Tag, X
 } from "lucide-react";
 import { DealCard, Deal } from "../components/market/DealCard";
@@ -10,25 +9,6 @@ import { useAuth } from "../context/AuthContext";
 import api from "../../lib/api";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-
-const GENRES = [
-  "Acción","Aventura","Rol","Estrategia","Indie",
-  "Simulación","Deportes","Carreras","Terror",
-] as const;
-
-type GenreKey = typeof GENRES[number];
-
-const GENRE_ICON: Record<string, JSX.Element> = {
-  Carreras:    <Car     size={13}/>,
-  Terror:      <Ghost   size={13}/>,
-  Acción:      <Sword   size={13}/>,
-  Estrategia:  <Zap     size={13}/>,
-  default:     <Gamepad2 size={13}/>,
-};
-
-function genreIcon(g: string) {
-  return GENRE_ICON[g] ?? GENRE_ICON.default;
-}
 
 const SORT_OPTIONS = [
   { value: "Deal Rating",  label: "Mejor valorados" },
@@ -178,7 +158,6 @@ export function Market() {
   const [search,         setSearch]         = useState("");
   const [sortBy,         setSortBy]         = useState("Deal Rating");
   const [maxPrice,       setMaxPrice]       = useState("100");
-  const [selectedGenre,  setSelectedGenre]  = useState<GenreKey | null>(null);
   const [showPriceDD,    setShowPriceDD]    = useState(false);
   const priceRef = useRef<HTMLDivElement>(null);
 
@@ -235,26 +214,6 @@ export function Market() {
     setPage(next);
     fetchDeals(next, true);
   };
-
-  // client-side genre filter via title keywords (CheapShark doesn't support genre)
-  const GENRE_KEYWORDS: Record<string, string[]> = {
-    Carreras:   ["race","racing","rally","nascar","speed","drift","kart","drive","moto"],
-    Terror:     ["horror","dead","zombie","fear","evil","outlast","alien","alien isolation","fatal"],
-    Acción:     ["action","war","combat","battle","hero","titan","doom","shoot","punch"],
-    Aventura:   ["adventure","quest","journey","legend","tomb","uncharted","explorer"],
-    Rol:        ["rpg","role","dragon","sword","magic","quest","fantasy","elder scrolls"],
-    Estrategia: ["strategy","civilization","age of","command","empire","sim city","xcom","total war"],
-    Indie:      ["indie","pixel","rogue","celeste","hades","hollow","undertale","stardew"],
-    Simulación: ["simulator","sim","farming","flight","truck","city","planet","space engine"],
-    Deportes:   ["fifa","nba","nfl","soccer","tennis","golf","football","sport","league"],
-  };
-
-  const visibleDeals = selectedGenre
-    ? deals.filter(d => {
-        const kw = GENRE_KEYWORDS[selectedGenre] ?? [];
-        return kw.some(k => d.title.toLowerCase().includes(k));
-      })
-    : deals;
 
   const priceLabel =
     maxPrice === "0"   ? "Gratis"   :
@@ -348,32 +307,6 @@ export function Market() {
           </div>
         </div>
 
-        {/* genre chips */}
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => setSelectedGenre(null)}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-              !selectedGenre
-                ? "bg-blue-600 text-white border-blue-500"
-                : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500"
-            }`}
-          >
-            Todos
-          </button>
-          {GENRES.map(g => (
-            <button
-              key={g}
-              onClick={() => setSelectedGenre(selectedGenre === g ? null : g)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                selectedGenre === g
-                  ? "bg-blue-600 text-white border-blue-500"
-                  : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500"
-              }`}
-            >
-              {genreIcon(g)}{g}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* ── Results header ── */}
@@ -381,20 +314,8 @@ export function Market() {
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <TrendingDown size={20} className="text-emerald-400"/>
           {search ? `Resultados para "${search}"` : "Todas las ofertas"}
-          {!loading && (
-            <span className="text-sm font-normal text-slate-500">
-              {selectedGenre ? ` · ${visibleDeals.length} juegos` : ""}
-            </span>
-          )}
+          {!loading && <span className="text-sm font-normal text-slate-500"> · {deals.length} juegos</span>}
         </h2>
-        {selectedGenre && (
-          <button
-            onClick={() => setSelectedGenre(null)}
-            className="text-sm text-slate-400 hover:text-white flex items-center gap-1"
-          >
-            <X size={13}/> Limpiar género
-          </button>
-        )}
       </div>
 
       {/* ── Game grid ── */}
@@ -404,12 +325,12 @@ export function Market() {
             <div key={i} className="bg-slate-900 border border-slate-800 rounded-xl h-52 animate-pulse"/>
           ))}
         </div>
-      ) : visibleDeals.length > 0 ? (
+      ) : deals.length > 0 ? (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {visibleDeals.map(d => <DealCard key={d.dealID} deal={d}/>)}
+            {deals.map(d => <DealCard key={d.dealID} deal={d}/>) }
           </div>
-          {hasMore && !selectedGenre && (
+          {hasMore && (
             <div className="flex justify-center pt-4">
               <button
                 onClick={loadMore}
@@ -426,7 +347,7 @@ export function Market() {
           <Star size={40} className="mx-auto mb-4 text-slate-700"/>
           <p className="text-lg">No se encontraron ofertas.</p>
           <button
-            onClick={() => { setSearch(""); setSelectedGenre(null); setMaxPrice("100"); }}
+            onClick={() => { setSearch(""); setMaxPrice("100"); }}
             className="text-blue-400 text-sm mt-2 hover:underline"
           >
             Limpiar filtros

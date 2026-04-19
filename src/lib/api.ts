@@ -59,4 +59,37 @@ export const createReport = (payload: {
   description?: string;
 }) => api.post('/api/reports', payload);
 
+// --- Market Tracking (Wishlist + Price Alerts) ---
+export const getWishlist = (params?: { live?: boolean }) =>
+  api.get('/api/market/wishlist', { params });
+
+export const addWishlistItem = (payload: {
+  steamAppId?: string;
+  gameId?: string;
+  title: string;
+  thumb?: string;
+}) => api.post('/api/market/wishlist', payload);
+
+export const removeWishlistItem = (id: string) =>
+  api.delete(`/api/market/wishlist/${id}`);
+
+export const getPriceAlerts = (params?: { live?: boolean }) =>
+  api.get('/api/market/alerts', { params });
+
+export const createPriceAlert = (payload: {
+  steamAppId?: string;
+  gameId?: string;
+  title: string;
+  thumb?: string;
+  targetPrice: number;
+}) => api.post('/api/market/alerts', payload);
+
+export const updatePriceAlert = (
+  id: string,
+  payload: { targetPrice?: number; enabled?: boolean },
+) => api.patch(`/api/market/alerts/${id}`, payload);
+
+export const deletePriceAlert = (id: string) =>
+  api.delete(`/api/market/alerts/${id}`);
+
 export default api;

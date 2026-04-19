@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation } from "react-router";
 import {
   ShoppingBag,
+  Bell,
   Users,
   ListOrdered,
   User as UserIcon,
@@ -36,6 +37,7 @@ export function Layout() {
     ...(user
       ? [
           { name: "Amigos", path: "/friends", icon: Users },
+          { name: "Seguimiento", path: "/market/tracking", icon: Bell },
           { name: "Perfil", path: "/profile", icon: UserIcon },
         ]
       : []),
