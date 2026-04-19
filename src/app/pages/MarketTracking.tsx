@@ -30,6 +30,7 @@ type LiveDeal = {
 };
 
 type WishlistItem = {
+  id?: string;
   steamAppId?: string;
   gameId?: string;
   title: string;
@@ -43,13 +44,17 @@ type WishlistItem = {
 };
 
 type PriceAlertItem = WishlistItem & {
-  targetPrice: number;
+  targetPrice?: number | null;
   enabled: boolean;
   updatedAt?: string;
   triggered?: boolean;
 };
 
-function getIdentity(item: { steamAppId?: string; gameId?: string }) {
+function getActionId(item: { id?: string; steamAppId?: string; gameId?: string }) {
+  return String(item.id || item.steamAppId || item.gameId || "").trim();
+}
+
+function getDetailId(item: { steamAppId?: string; gameId?: string }) {
   return String(item.steamAppId || item.gameId || "").trim();
 }
 
@@ -105,7 +110,7 @@ export function MarketTracking() {
   }
 
   const onRemoveWishlist = async (item: WishlistItem) => {
-    const identity = getIdentity(item);
+    const identity = getActionId(item);
     if (!identity) {
       toast.error("No se pudo identificar el juego");
       return;
@@ -113,7 +118,7 @@ export function MarketTracking() {
 
     try {
       await removeWishlistItem(identity);
-      setWishlist((prev) => prev.filter((entry) => getIdentity(entry) !== identity));
+      setWishlist((prev) => prev.filter((entry) => getActionId(entry) !== identity));
       toast.success("Juego eliminado de tu wishlist");
     } catch {
       toast.error("No se pudo eliminar de wishlist");
@@ -121,7 +126,7 @@ export function MarketTracking() {
   };
 
   const onDeleteAlert = async (item: PriceAlertItem) => {
-    const identity = getIdentity(item);
+    const identity = getActionId(item);
     if (!identity) {
       toast.error("No se pudo identificar la alerta");
       return;
@@ -129,7 +134,7 @@ export function MarketTracking() {
 
     try {
       await deletePriceAlert(identity);
-      setAlerts((prev) => prev.filter((entry) => getIdentity(entry) !== identity));
+      setAlerts((prev) => prev.filter((entry) => getActionId(entry) !== identity));
       toast.success("Alerta eliminada");
     } catch {
       toast.error("No se pudo eliminar la alerta");
@@ -137,7 +142,7 @@ export function MarketTracking() {
   };
 
   const onToggleAlert = async (item: PriceAlertItem) => {
-    const identity = getIdentity(item);
+    const identity = getActionId(item);
     if (!identity) {
       toast.error("No se pudo identificar la alerta");
       return;
@@ -148,15 +153,16 @@ export function MarketTracking() {
       await updatePriceAlert(identity, { enabled: nextEnabled });
       setAlerts((prev) =>
         prev.map((entry) =>
-          getIdentity(entry) === identity
+          getActionId(entry) === identity
             ? {
                 ...entry,
                 enabled: nextEnabled,
                 triggered:
                   nextEnabled &&
                   typeof entry.currentPrice === "number" &&
-                  Number(entry.targetPrice) > 0 &&
-                  entry.currentPrice <= Number(entry.targetPrice),
+                  typeof entry.targetPrice === "number" &&
+                  entry.targetPrice > 0 &&
+                  entry.currentPrice <= entry.targetPrice,
               }
             : entry,
         ),
@@ -168,7 +174,7 @@ export function MarketTracking() {
   };
 
   const onEditTarget = async (item: PriceAlertItem) => {
-    const identity = getIdentity(item);
+    const identity = getActionId(item);
     if (!identity) {
       toast.error("No se pudo identificar la alerta");
       return;
@@ -176,7 +182,9 @@ export function MarketTracking() {
 
     const input = window.prompt(
       `Nuevo precio objetivo para ${item.title} (USD)`,
-      Number(item.targetPrice).toFixed(2),
+      typeof item.targetPrice === "number" && item.targetPrice > 0
+        ? item.targetPrice.toFixed(2)
+        : "1.00",
     );
 
     if (input === null) return;
@@ -191,7 +199,7 @@ export function MarketTracking() {
       await updatePriceAlert(identity, { targetPrice: next, enabled: true });
       setAlerts((prev) =>
         prev.map((entry) =>
-          getIdentity(entry) === identity
+          getActionId(entry) === identity
             ? {
                 ...entry,
                 enabled: true,
@@ -275,8 +283,8 @@ export function MarketTracking() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {wishlist.map((item) => {
-              const identity = getIdentity(item);
-              const detailId = identity;
+              const identity = getActionId(item);
+              const detailId = getDetailId(item);
               const savings = typeof item.savings === "number" ? Math.round(item.savings) : 0;
 
               return (
@@ -347,8 +355,8 @@ export function MarketTracking() {
         ) : (
           <div className="space-y-3">
             {alerts.map((item) => {
-              const identity = getIdentity(item);
-              const detailId = identity;
+              const identity = getActionId(item);
+              const detailId = getDetailId(item);
               const isTriggered = Boolean(item.triggered);
 
               return (
@@ -388,7 +396,7 @@ export function MarketTracking() {
                           Actual: <strong className="text-white">{formatPrice(item.currentPrice)}</strong>
                         </span>
                         <span>
-                          Objetivo: <strong className="text-amber-300">{formatPrice(Number(item.targetPrice))}</strong>
+                          Objetivo: <strong className="text-amber-300">{formatPrice(item.targetPrice ?? null)}</strong>
                         </span>
                       </div>
                     </div>
