@@ -9,6 +9,8 @@ export interface User {
     profileurl: string;
     role?: 'user' | 'admin';
     isAdmin?: boolean;
+    status?: 'active' | 'warned' | 'silenced' | 'banned';
+    warningReason?: string;
 }
 
 interface AuthContextType {
@@ -34,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const token = params.get('token');
         const userId = params.get('id');
         const role = params.get('role');
+        const status = params.get('status');
 
         if (steamId && token) {
             // Steam callback — extract user data from URL params
@@ -45,6 +48,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 profileurl: params.get('profileUrl') || `https://steamcommunity.com/profiles/${steamId}`,
                 role: role === 'admin' ? 'admin' : 'user',
                 isAdmin: role === 'admin' || params.get('isAdmin') === 'true',
+                status: status === 'warned' || status === 'silenced' || status === 'banned' ? status : 'active',
+                warningReason: params.get('warningReason') || '',
             };
             setUser(userData);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
@@ -68,6 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         ...parsed,
                         role: parsed.role === 'admin' ? 'admin' : 'user',
                         isAdmin: parsed.isAdmin === true || parsed.role === 'admin',
+                        status: parsed.status === 'warned' || parsed.status === 'silenced' || parsed.status === 'banned' ? parsed.status : 'active',
+                        warningReason: typeof parsed.warningReason === 'string' ? parsed.warningReason : '',
                     };
                     setUser(normalizedUser);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedUser));
@@ -94,6 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         profileurl: res.data.user.profileUrl || `https://steamcommunity.com/profiles/${res.data.user.steamId}`,
                         role: res.data.user.role === 'admin' ? 'admin' : 'user',
                         isAdmin: res.data.user.role === 'admin' || res.data.user.isAdmin === true,
+                        status: res.data.user.status === 'warned' || res.data.user.status === 'silenced' || res.data.user.status === 'banned' ? res.data.user.status : 'active',
+                        warningReason: res.data.user.warningReason || '',
                     };
                     setUser(userData);
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
