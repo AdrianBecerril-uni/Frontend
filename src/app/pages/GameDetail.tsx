@@ -18,6 +18,7 @@ import api, {
 } from "../../lib/api";
 import type { Deal } from "../components/market/DealCard";
 import { useAuth } from "../context/AuthContext";
+import { Area, AreaChart, Brush, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -42,32 +43,37 @@ function toNum(v?: string | number | null) {
 function fmt(v: number) { return `$${v.toFixed(2)}`; }
 
 function buildHistoryFromPoints(pointsInput: PricePoint[], allTimeMin: number, current: number): PricePoint[] {
+  if (!pointsInput.length) return [];
+
   const sorted = [...pointsInput]
-    .filter((p) => p?.date && toNum(p.price) > 0)
+    .filter((p) => p && p.date && toNum(p.price) > 0)
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  const bucket = new Map<string, PricePoint>();
+  if (!sorted.length) return [];
+
+  const daily = new Map<string, PricePoint>();
   sorted.forEach((p) => {
-    const key = `${p.date.getFullYear()}-${p.date.getMonth()}`;
-    const prev = bucket.get(key);
-    if (!prev || p.price < prev.price) bucket.set(key, p);
+    const key = `${p.date.getFullYear()}-${p.date.getMonth()}-${p.date.getDate()}`;
+    const prev = daily.get(key);
+    if (!prev || p.price < prev.price) {
+      daily.set(key, { ...p, label: p.date.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "2-digit" }) });
+    }
   });
 
+  const result = Array.from(daily.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+
   const now = new Date();
-  const result: PricePoint[] = [];
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 15);
-    const key = `${d.getFullYear()}-${d.getMonth()}`;
-    const found = bucket.get(key);
+  const lastDate = result[result.length - 1].date;
+  if (now.getTime() - lastDate.getTime() > 43200000) {
     result.push({
-      date: d,
-      price: found ? found.price : (result.at(-1)?.price ?? current),
-      label: d.toLocaleDateString("es-ES", { month: "short", year: "2-digit" }),
+      date: now,
+      price: current,
+      label: now.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "2-digit" })
     });
   }
 
   const hasATL = result.some((p) => p.price <= allTimeMin * 1.01);
-  if (!hasATL && allTimeMin < result[0].price) {
+  if (!hasATL && allTimeMin < result[0]?.price) {
     result[0].price = allTimeMin;
   }
 
@@ -93,126 +99,83 @@ function PriceChart({ points, current, atl, normal }: {
   atl:     number;
   normal:  number;
 }) {
-  const [hovered, setHovered] = useState<number | null>(null);
+  if (!points || points.length === 0) return null;
 
-  const W = 560; const H = 220;
-  const PAD = { top: 20, right: 16, bottom: 36, left: 44 };
-  const w = W - PAD.left - PAD.right;
-  const h = H - PAD.top  - PAD.bottom;
+  const prices = points.map(p => p.price);
+  const maxP = Math.max(...prices, normal) * 1.08;
+  const minP = Math.max(0, Math.min(...prices, atl) * 0.92);
 
-  const prices  = points.map(p => p.price);
-  const maxP    = Math.max(...prices, normal) * 1.08;
-  const minP    = Math.max(0, Math.min(...prices, atl) * 0.92);
-  const range   = maxP - minP || 1;
-
-  const cx = (i: number) => PAD.left + (i / (points.length - 1)) * w;
-  const cy = (v: number) => PAD.top  + (1 - (v - minP) / range) * h;
-
-  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${cx(i)} ${cy(p.price)}`).join(" ");
-  const areaD = `${pathD} L ${cx(points.length - 1)} ${PAD.top + h} L ${PAD.left} ${PAD.top + h} Z`;
-
-  const ticks = 4;
-  const yTicks = Array.from({ length: ticks + 1 }, (_, i) => minP + (range * i) / ticks);
-
-  const hoveredPoint = hovered !== null ? points[hovered] : null;
+  // Default brush to last 12 months if much more data exists to prevent clutter initial view
+  const oneYearAgoIndex = Math.max(0, points.findIndex(p => p.date.getTime() > Date.now() - 31536000000));
 
   return (
-    <div className="relative select-none">
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full h-auto"
-        onMouseLeave={() => setHovered(null)}
-      >
-        <defs>
-          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor="#3b82f6" stopOpacity="0.4"/>
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0"/>
-          </linearGradient>
-        </defs>
-
-        {/* y-grid + labels */}
-        {yTicks.map(v => (
-          <g key={v}>
-            <line x1={PAD.left} y1={cy(v)} x2={PAD.left + w} y2={cy(v)} stroke="#1e293b" strokeDasharray="3 4"/>
-            <text x={PAD.left - 6} y={cy(v) + 4} fill="#64748b" fontSize="10" textAnchor="end">{fmt(v)}</text>
-          </g>
-        ))}
-
-        {/* all-time-low reference */}
-        {atl < maxP && atl > minP && (
-          <>
-            <line x1={PAD.left} y1={cy(atl)} x2={PAD.left + w} y2={cy(atl)}
-                  stroke="#22c55e" strokeDasharray="4 3" strokeWidth="1.5" opacity="0.7"/>
-            <text x={PAD.left + w - 2} y={cy(atl) - 4} fill="#22c55e" fontSize="9" textAnchor="end">
-              mínimo histórico {fmt(atl)}
-            </text>
-          </>
-        )}
-
-        {/* normal price reference */}
-        {normal > current && (
-          <>
-            <line x1={PAD.left} y1={cy(normal)} x2={PAD.left + w} y2={cy(normal)}
-                  stroke="#ef4444" strokeDasharray="4 3" strokeWidth="1" opacity="0.5"/>
-            <text x={PAD.left + 2} y={cy(normal) - 4} fill="#ef4444" fontSize="9" opacity="0.7">
-              precio base {fmt(normal)}
-            </text>
-          </>
-        )}
-
-        {/* area */}
-        <path d={areaD} fill="url(#areaGrad)"/>
-
-        {/* line */}
-        <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>
-
-        {/* x labels */}
-        {points.map((p, i) => {
-          if (i % 2 !== 0 && i !== points.length - 1) return null;
-          return (
-            <text key={i} x={cx(i)} y={H - 8} fill="#475569" fontSize="9" textAnchor="middle">
-              {p.label}
-            </text>
-          );
-        })}
-
-        {/* hover zones */}
-        {points.map((p, i) => (
-          <rect
-            key={i}
-            x={cx(i) - w / points.length / 2}
-            y={PAD.top}
-            width={w / points.length}
-            height={h}
-            fill="transparent"
-            onMouseEnter={() => setHovered(i)}
-            className="cursor-crosshair"
+    <div className="relative select-none h-[280px] w-full mt-4 flex flex-col">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={points} margin={{ top: 20, right: 10, left: 0, bottom: 20 }}>
+          <defs>
+            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4} />
+              <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 4" stroke="#1e293b" vertical={false} />
+          <XAxis 
+            dataKey="label" 
+            tick={{ fill: '#475569', fontSize: 10 }}
+            tickLine={false}
+            axisLine={false}
+            minTickGap={40}
           />
-        ))}
-
-        {/* hover indicator */}
-        {hovered !== null && hoveredPoint && (
-          <>
-            <line x1={cx(hovered)} y1={PAD.top} x2={cx(hovered)} y2={PAD.top + h}
-                  stroke="#94a3b8" strokeDasharray="3 3" strokeWidth="1"/>
-            <circle cx={cx(hovered)} cy={cy(hoveredPoint.price)} r="5"
-                    fill="#3b82f6" stroke="#0f172a" strokeWidth="2"/>
-          </>
-        )}
-      </svg>
-
-      {/* tooltip */}
-      {hoveredPoint && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 pointer-events-none">
-          <div className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs shadow-xl text-center">
-            <p className="text-white font-bold text-sm">{fmt(hoveredPoint.price)}</p>
-            <p className="text-slate-400">{hoveredPoint.label}</p>
-            {hoveredPoint.price <= atl * 1.01 && (
-              <p className="text-emerald-400 font-medium mt-0.5">🏆 Mínimo histórico</p>
-            )}
-          </div>
-        </div>
-      )}
+          <YAxis 
+            domain={[minP, maxP]} 
+            tickFormatter={fmt} 
+            tick={{ fill: '#64748b', fontSize: 10 }}
+            tickLine={false}
+            axisLine={false}
+            width={50}
+          />
+          <RechartsTooltip 
+            content={({ active, payload }) => {
+              if (active && payload && payload.length) {
+                const data = payload[0].payload;
+                return (
+                  <div className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs shadow-xl text-center z-50 relative">
+                    <p className="text-white font-bold text-sm">{fmt(data.price)}</p>
+                    <p className="text-slate-400">{data.label}</p>
+                    {data.price <= atl * 1.01 && (
+                      <p className="text-emerald-400 font-medium mt-0.5">🏆 Mínimo histórico</p>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            }} 
+          />
+          {atl < maxP && atl > minP && (
+            <ReferenceLine y={atl} stroke="#22c55e" strokeDasharray="4 3" opacity={0.7} />
+          )}
+          {normal > current && (
+            <ReferenceLine y={normal} stroke="#ef4444" strokeDasharray="4 3" opacity={0.5} />
+          )}
+          <Area 
+            type="step" 
+            dataKey="price" 
+            stroke="#3b82f6" 
+            strokeWidth={2.5}
+            fill="url(#areaGrad)" 
+            animationDuration={800}
+            isAnimationActive={false}
+          />
+          <Brush 
+            dataKey="label" 
+            height={20} 
+            stroke="#3b82f6"
+            fill="#0f172a" 
+            startIndex={points.length > 50 ? oneYearAgoIndex : 0}
+            className="text-[10px]"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -629,12 +592,12 @@ export function GameDetail() {
               <h2 className="text-lg font-bold text-white">Historial de Precios</h2>
               <span className="text-[11px] text-slate-500 bg-slate-800 px-2 py-1 rounded-full">
                 {historySource === "itad"
-                  ? "últimos 12 meses · IsThereAnyDeal"
-                  : "últimos 12 meses · CheapShark"}
+                  ? "histórico completo · IsThereAnyDeal"
+                  : "histórico completo · CheapShark"}
               </span>
             </div>
             <p className="text-sm text-slate-500 mb-4">
-              Pasa el ratón sobre la gráfica para ver el precio en cada fecha.
+              Usa el control inferior para cambiar el zoom en el tiempo y pasa el ratón para ver el precio.
             </p>
             <PriceChart points={priceHistory} current={currentPrice} atl={atl} normal={normalPrice}/>
           </div>
