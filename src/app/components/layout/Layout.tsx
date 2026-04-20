@@ -11,6 +11,7 @@ import {
   LogIn,
   LogOut,
   Shield,
+  AlertTriangle,
 } from "lucide-react";
 import { useState } from "react";
 import { clsx } from "clsx";
@@ -28,6 +29,10 @@ export function Layout() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const isAdmin = user?.role === "admin" || user?.isAdmin === true;
+  const isWarnedUser = user?.status === "warned";
+  const warningTooltip = user?.warningReason
+    ? `Has sido advertido por: \"${user.warningReason}\"`
+    : "Has sido advertido por incumplir las normas de la comunidad.";
   const isLoginPage = location.pathname === "/login";
 
   const navItems = [
@@ -61,7 +66,14 @@ export function Layout() {
               className="w-10 h-10 rounded-full ring-2 ring-blue-500/50"
             />
             <div className="overflow-hidden">
-              <p className="font-bold text-sm truncate">{user.personaname}</p>
+              <p className="font-bold text-sm truncate flex items-center gap-1.5">
+                <span className="truncate">{user.personaname}</span>
+                {isWarnedUser && (
+                  <span title={warningTooltip} aria-label={warningTooltip} className="inline-flex shrink-0">
+                    <AlertTriangle size={14} className="text-orange-400" />
+                  </span>
+                )}
+              </p>
               <p className="text-xs text-green-400 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>{" "}
                 Online
