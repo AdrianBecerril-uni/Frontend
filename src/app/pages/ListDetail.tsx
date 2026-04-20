@@ -124,6 +124,9 @@ export function ListDetail() {
       setNewComment("");
     } catch (err) {
       console.error(err);
+      const error = err as any;
+      const errorMessage = error?.response?.data?.error || error?.message || "Unknown error";
+      alert(`Error creating comment: ${errorMessage}`);
     }
   };
 
