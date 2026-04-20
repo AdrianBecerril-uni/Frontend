@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Bot, X, Send, Sparkles, Eye, Maximize2, Minimize2 } from "lucide-react";
+import { Bot, X, Send, Sparkles, Eye, Maximize2, Minimize2, Monitor, Image as ImageIcon, XCircle } from "lucide-react";
 import api from "../../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 
@@ -9,15 +9,8 @@ interface Message {
   role: 'user' | 'assistant';
   text: string;
   hasScreenContext?: boolean;
+  image?: string;
 }
-
-// FUTURO: Descomentar cuando tengamos modelo de visión de Groq
-/*
-import { Monitor, Image as ImageIcon, XCircle } from "lucide-react";
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
   text: string;
   image?: string;
 }
@@ -36,9 +29,8 @@ export function AssistantModal() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
 
-  // FUTURO: Descomentar cuando tengamos modelo de visión
-  // const [attachedImage, setAttachedImage] = useState<string | null>(null);
-  // const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -300,6 +292,7 @@ export function AssistantModal() {
       role: 'user',
       text: userText,
       hasScreenContext: !!screenContext,
+      image: attachedImage || undefined
     };
     setMessages(prev => [...prev, userMsg]);
     setInput("");
@@ -313,7 +306,16 @@ export function AssistantModal() {
         steamId: user?.steamid || null,
         screenContext: screenContext || undefined,
         includeSteamContext: true,
+        image: attachedImage || undefined
       });
+
+      // Clear image after sending
+      if (attachedImage) {
+        setAttachedImage(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
 
       const data = response.data;
       if (data.sessionId) {
@@ -339,8 +341,17 @@ export function AssistantModal() {
     }
   };
 
-  // FUTURO: Descomentar cuando tengamos modelo de visión
-  /*
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setAttachedImage(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // Capture screen/window/tab
   const handleCaptureScreen = async () => {
     try {
@@ -377,11 +388,6 @@ export function AssistantModal() {
     }
   };
 
-  // Attach image from file
-  const handleAttachImage = () => {
-    fileInputRef.current?.click();
-  };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -406,62 +412,16 @@ export function AssistantModal() {
     reader.readAsDataURL(file);
   };
 
+  const handleAttachImage = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleRemoveImage = () => {
     setAttachedImage(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
-
-  const handleSend = async () => {
-    if ((!input.trim() && !attachedImage) || loading) return;
-
-    const userText = input.trim() || '¿Qué ves en esta imagen?';
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      text: userText,
-      image: attachedImage || undefined
-    };
-    setMessages(prev => [...prev, userMsg]);
-    setInput("");
-    const imageToSend = attachedImage;
-    setAttachedImage(null);
-    setLoading(true);
-
-    try {
-      const response = await api.post('/api/chat/message', {
-        message: userText,
-        sessionId,
-        userId: user?.steamid || 'anonymous',
-        steamId: user?.steamid,
-        image: imageToSend,
-      });
-
-      const data = response.data;
-      if (data.sessionId) {
-        setSessionId(data.sessionId);
-      }
-
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        text: data.response || 'Lo siento, no pude generar una respuesta.',
-      };
-      setMessages(prev => [...prev, aiMsg]);
-    } catch (error) {
-      console.error("AI Error:", error);
-      const errorMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        text: "Lo siento, tuve un problema al procesar tu solicitud. Intenta de nuevo más tarde."
-      };
-      setMessages(prev => [...prev, errorMsg]);
-    } finally {
-      setLoading(false);
-    }
-  };
-  */
 
   return (
     <>
@@ -531,7 +491,7 @@ export function AssistantModal() {
                     className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
+                      className={`max-w-[85%] flex flex-col p-3 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
                           ? 'bg-blue-600 text-white rounded-br-none shadow-md shadow-blue-900/20'
                           : 'bg-slate-800 text-slate-200 rounded-bl-none border border-slate-700 shadow-sm'
                         }`}
@@ -541,14 +501,19 @@ export function AssistantModal() {
                           <Bot size={12} /> SteaMate AI
                         </div>
                       )}
-                      {msg.hasScreenContext && (
-                        <div className="flex items-center gap-2 mb-2 text-xs">
-                          <span className="flex items-center gap-1 text-cyan-400">
-                            <Eye size={12} />
-                            Pantalla
-                          </span>
+                      
+                      {msg.image && (
+                        <div className="mb-2 rounded-lg overflow-hidden border border-white/10">
+                          <img src={msg.image} alt="Usuario" className="max-w-full h-auto max-h-48 object-cover" />
                         </div>
                       )}
+
+                      {msg.hasScreenContext && (
+                        <div className="flex items-center gap-2 mb-2 text-xs text-cyan-200 bg-cyan-900/40 p-1.5 rounded inline-flex w-fit">
+                          <Eye size={12} /> Contexto de pantalla
+                        </div>
+                      )}
+                      
                       <p className="whitespace-pre-wrap">{msg.text}</p>
                     </div>
                   </div>
@@ -568,8 +533,41 @@ export function AssistantModal() {
               </div>
 
               {/* Input Area */}
-              <div className="p-4 bg-slate-900 border-t border-slate-700">
+              <div className="p-4 bg-slate-900 border-t border-slate-700 flex flex-col gap-2">
+                
+                {/* Image Preview */}
+                {attachedImage && (
+                  <div className="relative inline-block w-fit mb-2">
+                    <div className="border-2 border-blue-500/50 rounded-lg overflow-hidden p-1 bg-slate-950">
+                      <img src={attachedImage} alt="Adjunto" className="h-20 w-auto object-cover rounded" />
+                      <button 
+                        onClick={handleRemoveImage}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-400 transition-colors"
+                      >
+                        <XCircle size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2">
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                  />
+
+                  <button
+                    onClick={handleAttachImage}
+                    disabled={loading}
+                    className="text-slate-400 hover:text-blue-400 p-2 rounded-lg hover:bg-slate-800 transition-colors"
+                    title="Subir imagen"
+                  >
+                    <ImageIcon size={20} />
+                  </button>
+
                   {/* Screen context toggle button */}
                   <button
                     onClick={handleToggleScreenContext}
@@ -585,7 +583,7 @@ export function AssistantModal() {
                   </button>
 
                   {/* Input field */}
-                  <div className="flex-1 flex items-center gap-2 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 focus-within:border-blue-500 transition-colors">
+                  <div className="flex-1 flex items-center justify-between bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 focus-within:border-blue-500 transition-colors">
                     <input
                       type="text"
                       value={input}
